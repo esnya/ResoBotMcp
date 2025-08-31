@@ -56,7 +56,7 @@ Recommended extensions are in `.vscode/extensions.json`.
 
 ## Roadmap
 
-- WebSocket ingress (Resonite as client, message-oriented)
+- WebSocket ingress (Resonite as client, message-oriented). Protocol: see `docs/PROTOCOL_WS_RPC.md`.
 - HTTP ingress (Resonite-initiated GET/POST, text-only)
 - Flat key-value codec (URL-encoded) for non-JSON transports
 

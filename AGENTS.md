@@ -14,6 +14,8 @@ Authoritative, concise rules for contributors (≤200 lines).
 - Transports: OSC now; WebSocket/HTTP ingress later.
 - MCP: stdio server via `@modelcontextprotocol/sdk`.
 
+Protocol: see `docs/PROTOCOL_WS_RPC.md` for the minimal WebSocket RPC used between Resonite (client) and the server.
+
 ## Ubiquitous Language
 
 - ResoniteLink: boundary to the Resonite world.
