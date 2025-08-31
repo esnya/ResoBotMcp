@@ -237,56 +237,7 @@ server.registerTool<{
   },
 );
 
-// New MCP tool: move by direction enum + distance (sends vector via WS RPC)
-const DirectionSchema = z.union([
-  z.literal('forward'),
-  z.literal('back'),
-  z.literal('left'),
-  z.literal('right'),
-  z.literal('up'),
-  z.literal('down'),
-]);
-
-server.registerTool<{
-  direction: z.ZodString;
-  distance: z.ZodNumber;
-}>(
-  'move',
-  {
-    description:
-      'Move by direction enum and distance. Sends XYZ vector to Resonite via WS RPC using FlatKV ArrayValue.' ,
-    inputSchema: { direction: DirectionSchema, distance: z.number() },
-  },
-  async (args: { direction: 'forward'|'back'|'left'|'right'|'up'|'down'; distance: number }) => {
-    const { direction, distance } = args;
-    const d = Math.max(Number(distance), 0);
-    let vec: [number, number, number] = [0, 0, 0];
-    switch (direction) {
-      case 'forward':
-        vec = [0, 0, d];
-        break;
-      case 'back':
-        vec = [0, 0, -d];
-        break;
-      case 'left':
-        vec = [-d, 0, 0];
-        break;
-      case 'right':
-        vec = [d, 0, 0];
-        break;
-      case 'up':
-        vec = [0, d, 0];
-        break;
-      case 'down':
-        vec = [0, -d, 0];
-        break;
-    }
-    const vector = encodeArray(vec);
-    scoped('tool:move').info({ direction, distance, vector }, 'request');
-    await wsServer.request('move', { vector });
-    return { content: [{ type: 'text', text: JSON.stringify({ vector: vec }) }] };
-  },
-);
+// (moved into move_relative; 'move' tool removed to avoid duplication)
 
 // MCP tool: get current global position and orientation
 server.registerTool(
