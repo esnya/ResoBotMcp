@@ -4,17 +4,17 @@ Authoritative, concise rules for contributors (≤200 lines).
 
 ## Priorities
 
-- Naming is design. Prefer precise, domain-driven names.
+- Naming is design. Prefer precise, domain‑driven names.
 - Keep it simple: YAGNI, DRY, high cohesion, low coupling.
 - Static safety first. Intent must be clear from code, not comments.
 
 ## Architecture
 
 - Bounded contexts: Gateway(transport), UseCases(app), Types(shared).
-- Transports: OSC now; WebSocket/HTTP ingress later.
+- Transports: defined in protocol docs; keep command and telemetry concerns separate.
 - MCP: stdio server via `@modelcontextprotocol/sdk`.
 
-Protocol: see `docs/PROTOCOL_WS_RPC.md` for the minimal WebSocket RPC used between Resonite (client) and the server.
+Protocol specifics live in `docs/PROTOCOL_WS_RPC.md` (do not duplicate here).
 
 ## Ubiquitous Language
 
@@ -22,14 +22,23 @@ Protocol: see `docs/PROTOCOL_WS_RPC.md` for the minimal WebSocket RPC used betwe
 - OscTextSender: OSC text egress.
 - SendTextViaOsc: deliver text to the world.
 - Ingress: WS/HTTP receivers from Resonite (future).
-- FlatCodec: key=value URL-encoded serialization (future).
+- FlatKV: flat key=value codec (see Protocol docs for encoding rules).
+
+## Design‑First Principles
+
+- Design first: Before coding, write a short design note (purpose, boundaries, public API/contract, error model, encoding/units). Link it in the PR.
+- No phantom APIs: Never call or depend on interfaces that are not designed and implemented. If needed, stub behind an interface or guard with a feature flag.
+- Single source of truth: Contracts live in docs/specs. Code, tests, and tools follow them exactly. Breaking changes require a Migration note.
+- Avoid hidden defaults: Keep integration defaults (e.g., endpoints) in one place and aligned across code and tools.
+- Non‑interfering observability: Logs and outputs must not collide with protocol transports. Return concise, human‑useful results from tools.
+- Readiness and timeouts: For external dependencies, wait with bounded timeouts and fail with actionable messages.
 
 ## Configuration Pattern
 
 - Each constructor takes a single `Config` object.
-- `Config` is a plain, JSON-serializable record validated by zod.
+- `Config` is a plain, JSON‑serializable record validated by zod.
 - Provide `fromEnv()` (parse/validate) and `toJSON()` (or plain object) helpers.
-- Treat config/submodels so they can be passed as-is (model_dump analogue).
+- Treat config/submodels so they can be passed as‑is (model_dump analogue).
 - No comments in config. Express intent via field names and types.
 
 See `docs/CONFIGURATION.md` for patterns and examples.
@@ -46,7 +55,7 @@ See `docs/CONFIGURATION.md` for patterns and examples.
 ## Tooling
 
 - TypeScript: `strict`, `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`.
-- ESLint (flat) type-aware + Prettier. Run `npm run check` before commit.
+- ESLint (flat) type‑aware + Prettier. Run `npm run check` before commit.
 - Tests: Vitest (+ coverage). Keep fast and deterministic.
 
 ## VS Code Policy
@@ -59,11 +68,11 @@ See `docs/CONFIGURATION.md` for patterns and examples.
 
 - Do not document what code already makes obvious.
 - Prefer pointing to directories/modules over repeating implementation.
-- Keep this guide concise and non-redundant; move extended notes to `docs/`.
+- Keep this guide concise and non‑redundant; move extended notes to `docs/`.
 
 ## Security
 
-- Do not use pre-commit hooks or client-side Git automations.
+- Do not use pre‑commit hooks or client‑side Git automations.
 
 ## Project Layout
 
@@ -76,11 +85,12 @@ See `docs/CONFIGURATION.md` for patterns and examples.
 ## Scripts
 
 - `dev`: start MCP stdio server.
-- `fix`: Prettier write then ESLint --fix (auto-fix first).
-- `check`: Prettier check, ESLint, TS type-check.
+- `fix`: Prettier write then ESLint --fix (auto‑fix first).
+- `check`: Prettier check, ESLint, TS type‑check.
 - `test`, `test:watch`: run tests.
 
 ## Review
 
 - Prefer small, cohesive changes. Rename early when names clarify intent.
 - If code needs comments to understand, redesign it. Only doc comments allowed where unavoidable.
+

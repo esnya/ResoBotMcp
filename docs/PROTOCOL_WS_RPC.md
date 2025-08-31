@@ -5,27 +5,27 @@ Normative spec for message exchange between Resonite (client) and this server us
 - Transport: WebSocket (text frames, UTF-8). Resonite is the client.
 - Endpoint: `ws://<host>:<port>/` (port configurable, default 8765).
 - Framing: 1 frame = 1 message.
-- Encoding: FlatKV (see “FlatKV Codec”).
+- Encoding: Entire frame MUST be URL percent-encoded (encodeURIComponent). After decoding the frame (decodeURIComponent), payload is FlatKV.
 
 ## Envelope
 
 - Common fields
-  - `type`: message type: `req` | `res`.
+  - `type`: message type: `request` | `response`.
   - `id`: correlation id (ASCII `[A-Za-z0-9._-]{1,64}`) unique per request.
 
-- Request (`type=req`)
-  - `method`: method name (e.g., `bot.say`).
-  - `arg.<name>`: argument values (strings). No global typing rules; methods decide semantics.
+- Request (`type=request`)
+  - `method`: method name (e.g., `ping`).
+  - Arguments: top-level keys other than `type/id/method/status/message` are treated as arguments
 
-- Response (`type=res`)
+- Response (`type=response`)
   - `status`: `ok` | `error`.
-  - When `status=ok`: `result.<name>` fields are returned.
+  - When `status=ok`: results are returned as top-level keys other than `type/id/status/message`.
   - When `status=error`: `message` contains a human-readable error description (no error code).
 
 - Example (visual separators shown below; see FlatKV for actual encoding)
-  - Request pairs: `type=req`, `id=abc123`, `method=bot.say`, `arg.text=Hello world!`
-  - Success pairs: `type=res`, `id=abc123`, `status=ok`, `result.delivered=true`
-  - Error pairs: `type=res`, `id=abc123`, `status=error`, `message=text required`
+  - Request pairs: `type=request`, `id=abc123`, `method=ping`, `text=Hello world!`
+  - Success pairs: `type=response`, `id=abc123`, `status=ok`, `text=Hello world!`
+  - Error pairs: `type=response`, `id=abc123`, `status=error`, `message=text required`
 
 ## Semantics
 
@@ -84,3 +84,9 @@ value := percent-encoded UTF-8 text (see below)
 
 - Keys are flat. Use dots to convey hierarchy (e.g., `arg.text`, `result.delivered`).
 - Values are opaque strings to the transport; typing is method-specific.
+
+### ArrayValue (convention)
+
+- When passing vectors or fixed-size lists, encode as C#-style array text: `[v0;v1;v2]`.
+- Parser splits on `;` inside surrounding brackets. Whitespace is not significant.
+- Example: `vector=[0.0;1.0;0.0]`.

@@ -55,6 +55,20 @@ function decodeValue(value: string): string {
 
 export type FlatRecord = Record<string, string>;
 
+// ArrayValue helpers (C#-style): "[v0;v1;v2]"
+export function encodeArray(values: Array<string | number>): string {
+  return `[${values.map((v) => String(v)).join(';')}]`;
+}
+
+export function decodeArray(text: string): string[] {
+  if (!text.startsWith('[') || !text.endsWith(']')) {
+    throw new Error('invalid ArrayValue: missing brackets');
+  }
+  const inner = text.slice(1, -1);
+  if (inner.length === 0) return [];
+  return inner.split(';');
+}
+
 export const FlatKV = {
   pairSep: US,
   kvSep: GS,
@@ -63,12 +77,16 @@ export const FlatKV = {
     for (const [key, raw] of Object.entries(record)) {
       pairs.push(`${key}${GS}${encodeValue(String(raw))}`);
     }
-    return pairs.join(US);
+    const raw = pairs.join(US);
+    // Transport-level: return URL-encoded frame so separators are safe over text transports
+    return encodeURIComponent(raw);
   },
   decode(text: string): FlatRecord {
     const record: FlatRecord = {};
     if (text.length === 0) return record;
-    const pairs = text.split(US);
+    // Transport-level: entire frame is URL-encoded; decode first
+    const raw = decodeURIComponent(text);
+    const pairs = raw.split(US);
     for (const pair of pairs) {
       if (pair.length === 0) continue;
       const idx = pair.indexOf(GS);
@@ -83,6 +101,8 @@ export const FlatKV = {
   },
   encodeValue,
   decodeValue,
+  encodeArray,
+  decodeArray,
   RS,
 } as const;
 
@@ -116,9 +136,18 @@ export function parseResponse(record: FlatRecord): RpcResponseOk | RpcResponseEr
   }
   if (status === 'ok') {
     const result: Record<string, string> = {};
+    const reserved = new Set(['type', 'id', 'status', 'message', 'method']);
+    // Prefer top-level keys (new format)
+    for (const [k, v] of Object.entries(record)) {
+      if (reserved.has(k)) continue;
+      if (k.startsWith('result.')) continue; // handled below
+      result[k] = v;
+    }
+    // Back-compat: also accept result.* keys
     for (const [k, v] of Object.entries(record)) {
       if (k.startsWith('result.')) {
-        result[k.slice('result.'.length)] = v;
+        const kk = k.slice('result.'.length);
+        if (!(kk in result)) result[kk] = v;
       }
     }
     return { id, status: 'ok', result };
@@ -144,9 +173,19 @@ export function parseRequest(record: FlatRecord): RpcRequest {
     throw new Error('missing method');
   }
   const args: Record<string, string> = {};
+  const reserved = new Set(['type', 'id', 'method', 'status', 'message']);
+  // New format: top-level keys are arguments (excluding reserved)
+  for (const [k, v] of Object.entries(record)) {
+    if (reserved.has(k)) continue;
+    if (k.startsWith('result.')) continue; // response-only
+    if (k.startsWith('argument.')) continue; // handled below for back-compat
+    args[k] = v;
+  }
+  // Back-compat: allow argument.*
   for (const [k, v] of Object.entries(record)) {
     if (k.startsWith('argument.')) {
-      args[k.slice('argument.'.length)] = v;
+      const kk = k.slice('argument.'.length);
+      if (!(kk in args)) args[kk] = v;
     }
   }
   return { id, method, args };
@@ -155,7 +194,7 @@ export function parseRequest(record: FlatRecord): RpcRequest {
 export function buildResponseOk(res: RpcResponseOk): FlatRecord {
   const out: FlatRecord = { type: 'response', id: res.id, status: 'ok' };
   for (const [k, v] of Object.entries(res.result)) {
-    out[`result.${k}`] = v;
+    out[k] = v;
   }
   return out;
 }

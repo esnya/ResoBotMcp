@@ -19,6 +19,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx src/main.ts",
+    "probe": "tsx src/devtools/probe.ts",
+    "integration": "tsx src/devtools/integration.ts",
     "start": "node dist/main.js",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",

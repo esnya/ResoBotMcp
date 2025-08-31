@@ -47,6 +47,8 @@ Recommended extensions are in `.vscode/extensions.json`.
 ## Project Scripts
 
 - `dev` – run MCP stdio server with tsx
+- `probe` – optional, manual probe for Resonite side (WS/OSC)
+- `integration` – run a consolidated end-to-end check against the MCP server
 - `build` – type-check and emit to `dist`
 - `fix` – Prettier write + ESLint --fix
 - `check` – Prettier check + ESLint + TS typecheck
@@ -59,3 +61,20 @@ Recommended extensions are in `.vscode/extensions.json`.
 - Flat key-value codec (URL-encoded) for non-JSON transports
 
 MIT © esnya
+
+## Integration Probe (optional)
+
+These manual checks require a running Resonite world wired to the OSC/WS ports.
+They are not part of normal tests.
+
+- Set expression via presets:
+  - `npm run probe -- set-expression --eyesId winkL --mouthId smile_big`
+- Set accent hue (0..360, normalized to 0..1 internally):
+  - `npm run probe -- set-accent-hue --hue 200`
+- Seed pose into the server (helps `move_relative`/`turn_relative` in your scene):
+  - `npm run probe -- pose --x 0 --y 0 --z 0 --heading 90 --pitch 0`
+- WS ping roundtrip (Resonite WS client must connect to the server):
+  - `npm run probe -- ws:ping --text hello`
+- Consolidated check (all tools, Resonite required):
+  - `npm run integration`
+  - Set `INTEGRATION_CAPTURE=1` to also test `capture_camera`

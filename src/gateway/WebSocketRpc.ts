@@ -56,10 +56,22 @@ export class WebSocketRpcServer {
       log.info('client disconnected');
     });
     ws.on('message', async (data: WebSocket.RawData) => {
-      if (typeof data !== 'string' && !(data instanceof String)) {
+      // Accept both text and binary frames; coerce to UTF-8 string
+      let text: string;
+      if (typeof data === 'string' || data instanceof String) {
+        text = String(data);
+      } else if (Array.isArray(data)) {
+        // Node ws can deliver an array of Buffers
+        const buf = Buffer.concat(data as Buffer[]);
+        text = buf.toString('utf8');
+      } else if (data instanceof Buffer) {
+        text = (data as Buffer).toString('utf8');
+      } else if (data instanceof ArrayBuffer) {
+        text = Buffer.from(data as ArrayBuffer).toString('utf8');
+      } else {
+        log.warn('unsupported WS frame type; ignoring');
         return;
       }
-      const text = String(data);
       let record: FlatRecord;
       try {
         record = FlatKV.decode(text);
@@ -129,7 +141,8 @@ export class WebSocketRpcServer {
     if (!ws) throw new Error('no Resonite client connected');
     const id = Math.random().toString(36).slice(2, 10);
     const record: FlatRecord = { type: 'request', id, method };
-    for (const [k, v] of Object.entries(args)) record[`argument.${k}`] = v;
+    // New format: put args at top-level (no 'argument.' prefix)
+    for (const [k, v] of Object.entries(args)) record[k] = v;
     const text = FlatKV.encode(record);
     const timeoutMs = options?.timeoutMs ?? 10000;
     return await new Promise<Record<string, string>>((resolve, reject) => {

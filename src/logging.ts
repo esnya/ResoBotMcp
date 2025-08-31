@@ -8,6 +8,6 @@ export const logger = pino({
   timestamp: pino.stdTimeFunctions.isoTime,
 });
 
-export function scoped(scope: string) {
+export function scoped(scope: string): ReturnType<typeof logger.child> {
   return logger.child({ scope });
 }

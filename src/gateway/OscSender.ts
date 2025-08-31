@@ -54,7 +54,9 @@ export class OscSender {
     }
     await new Promise<void>((resolve, reject) => {
       try {
-        this.client.send(address, ...values, (err: Error | null) => {
+        // Force float typing for numeric values to satisfy receivers expecting float args
+        const args = values.map((v) => ({ type: 'float', value: Number(v) }));
+        this.client.send(address, ...args, (err: Error | null) => {
           if (err) {
             log.error({ err, address, values }, 'osc send numbers failed');
             reject(err);

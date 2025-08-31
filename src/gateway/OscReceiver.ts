@@ -10,7 +10,7 @@ export const OscIngressConfigSchema = z.object({
 });
 export type OscIngressConfig = z.infer<typeof OscIngressConfigSchema>;
 
-type Handler = (args: any[]) => void;
+type Handler = (args: unknown[]) => void;
 
 export class OscReceiver {
   private readonly server: Server;
@@ -19,10 +19,17 @@ export class OscReceiver {
   constructor(private readonly config: OscIngressConfig) {
     this.server = new Server(config.port, config.host);
     log.info({ host: config.host, port: config.port }, 'OSC receiver listening');
-    this.server.on('message', (msg: any[]) => {
+    this.server.on('message', (msg: unknown[]) => {
       if (!Array.isArray(msg) || msg.length === 0) return;
-      const [address, ...rest] = msg;
+      const [address, ...rest] = msg as [unknown, ...unknown[]];
       if (typeof address !== 'string') return;
+      try {
+        // Light debug to observe ingress without being too noisy
+        const preview = rest.map((v) => (typeof v === 'number' ? v : String(v))).slice(0, 8);
+        log.debug({ address, args: preview }, 'osc message received');
+      } catch {
+        // ignore logging errors
+      }
       const h = this.handlers.get(address);
       if (h) {
         try {

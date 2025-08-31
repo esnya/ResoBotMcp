@@ -6,9 +6,12 @@ import { SendTextViaOsc } from './usecases/SendTextViaOsc.js';
 import { WebSocketRpcServer, wsConfigFromEnv } from './gateway/WebSocketRpc.js';
 import { ReadLocalAsset, loadResoniteDataPathFromEnv } from './usecases/ReadLocalAsset.js';
 import { MoveRelativeInput, TurnRelativeInput } from './types/controls.js';
+import { SetExpression, SetExpressionInput } from './usecases/SetExpression.js';
+import { SetAccentHue, SetAccentHueInput } from './usecases/SetAccentHue.js';
 import { OscReceiver, oscIngressConfigFromEnv } from './gateway/OscReceiver.js';
 import { PoseTracker } from './gateway/PoseTracker.js';
 import { scoped } from './logging.js';
+import { encodeArray } from './gateway/FlatKV.js';
 const InputSchema = {
   text: z.string().min(1, 'text is required'),
 } as const;
@@ -21,18 +24,22 @@ const log = scoped('main');
 const oscSender = new OscSender(oscTarget);
 const sendTextViaOsc = new SendTextViaOsc(oscSender);
 const wsServer = new WebSocketRpcServer(wsConfigFromEnv());
+const setExpression = new SetExpression(oscSender);
+const setAccentHue = new SetAccentHue(oscSender);
 log.info({ osc: oscTarget }, 'server starting');
 
 // Track pose from OSC ingress
 const poseTracker = new PoseTracker();
 const oscIngress = new OscReceiver(oscIngressConfigFromEnv());
-oscIngress.register('/resobot/position', (args) => {
+oscIngress.register('/virtualbot/position', (args) => {
   const [x, y, z] = args as number[];
   poseTracker.updatePosition(Number(x), Number(y), Number(z));
+  scoped('osc:position').debug({ x: Number(x), y: Number(y), z: Number(z) }, 'position updated');
 });
-oscIngress.register('/resobot/rotation', (args) => {
+oscIngress.register('/virtualbot/rotation', (args) => {
   const [heading, pitch] = args as number[];
   poseTracker.updateRotation(Number(heading), Number(pitch));
+  scoped('osc:rotation').debug({ heading: Number(heading), pitch: Number(pitch) }, 'rotation updated');
 });
 wsServer.register('ping', (args) => {
   const { text } = z.object({ text: z.string() }).parse({ text: args['text'] ?? '' });
@@ -57,6 +64,20 @@ const server = new McpServer(
   },
 );
 
+async function sleep(ms: number): Promise<void> {
+  await new Promise((r) => setTimeout(r, ms));
+}
+
+async function waitForPose(timeoutMs = 3000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const p = poseTracker.get();
+    if (p) return p;
+    await sleep(50);
+  }
+  throw new Error('pose unavailable: timeout waiting for initial pose');
+}
+
 server.registerTool<{
   text: z.ZodString;
 }>(
@@ -69,6 +90,22 @@ server.registerTool<{
     scoped('tool:set_text').info('sending text');
     const { text } = args;
     await sendTextViaOsc.execute({ text });
+    return { content: [{ type: 'text', text: 'delivered' }] };
+  },
+);
+
+server.registerTool<{
+  eyesId: z.ZodOptional<z.ZodString>;
+  mouthId: z.ZodOptional<z.ZodString>;
+}>(
+  'set_expression',
+  {
+    description: 'Set expression by preset identifiers (eyesId/mouthId).',
+    inputSchema: SetExpressionInput,
+  },
+  async (args: { eyesId?: string; mouthId?: string }) => {
+    scoped('tool:set_expression').info(args, 'request');
+    await setExpression.execute(args);
     return { content: [{ type: 'text', text: 'delivered' }] };
   },
 );
@@ -117,30 +154,39 @@ server.registerTool(
 );
 
 server.registerTool<{
+  hue: z.ZodNumber;
+}>(
+  'set_accent_hue',
+  {
+    description: 'Set accent hue in degrees (0..360). Normalized to 0..1 for OSC.',
+    inputSchema: SetAccentHueInput,
+  },
+  async (args: { hue: number }) => {
+    scoped('tool:set_accent_hue').info(args, 'request');
+    await setAccentHue.execute(args);
+    return { content: [{ type: 'text', text: 'delivered' }] };
+  },
+);
+
+server.registerTool<{
   forward: z.ZodOptional<z.ZodNumber>;
   right: z.ZodOptional<z.ZodNumber>;
 }>(
   'move_relative',
   {
-    description: 'Move relative to bot axes: forward/right in meters. Sends numeric OSC.',
+    description: 'Move relative to bot axes: forward/right in meters. Uses WS RPC; pose still echoed via OSC.',
     inputSchema: MoveRelativeInput,
   },
   async (args: { forward?: number; right?: number }) => {
     scoped('tool:move_relative').info(args, 'request');
     const parsed = z.object(MoveRelativeInput).parse(args);
-    const pose = poseTracker.get();
-    if (!pose) throw new Error('pose unavailable');
     const fwd = parsed.forward ?? 0;
     const right = parsed.right ?? 0;
     if (fwd === 0 && right === 0) return { content: [{ type: 'text', text: 'noop' }] };
-    const rad = (pose.heading * Math.PI) / 180;
-    const dx = fwd * Math.sin(rad) + right * Math.cos(rad);
-    const dz = fwd * Math.cos(rad) - right * Math.sin(rad);
-    const nx = pose.x + dx;
-    const nz = pose.z + dz;
-    // Unify addresses: send position separately
-    await oscSender.sendNumbers('/resobot/position', nx, pose.y, nz);
-    return { content: [{ type: 'text', text: 'delivered' }] };
+    await wsServer.request('move.relative', { forward: String(fwd), right: String(right) });
+    const detail = JSON.stringify({ forward: fwd, right });
+    scoped('tool:move_relative').info({ forward: fwd, right }, 'rpc sent');
+    return { content: [{ type: 'text', text: detail }] };
   },
 );
 
@@ -149,18 +195,66 @@ server.registerTool<{
 }>(
   'turn_relative',
   {
-    description: 'Turn (yaw) relative in degrees. Sends numeric OSC.',
+    description: 'Turn (yaw) relative in degrees. Uses WS RPC; pose still echoed via OSC.',
     inputSchema: TurnRelativeInput,
   },
   async (args: { degrees: number }) => {
     scoped('tool:turn_relative').info(args, 'request');
     const parsed = z.object(TurnRelativeInput).parse(args);
-    const pose = poseTracker.get();
-    if (!pose) throw new Error('pose unavailable');
-    const newHeading = pose.heading + parsed.degrees;
-    // Unify addresses: send rotation separately
-    await oscSender.sendNumbers('/resobot/rotation', newHeading, pose.pitch);
-    return { content: [{ type: 'text', text: 'delivered' }] };
+    await wsServer.request('turn.relative', { degrees: String(parsed.degrees) });
+    scoped('tool:turn_relative').info({ degrees: parsed.degrees }, 'rpc sent');
+    return { content: [{ type: 'text', text: JSON.stringify({ degrees: parsed.degrees }) }] };
+  },
+);
+
+// New MCP tool: move by direction enum + distance (sends vector via WS RPC)
+const DirectionSchema = z.union([
+  z.literal('forward'),
+  z.literal('back'),
+  z.literal('left'),
+  z.literal('right'),
+  z.literal('up'),
+  z.literal('down'),
+]);
+
+server.registerTool<{
+  direction: z.ZodString;
+  distance: z.ZodNumber;
+}>(
+  'move',
+  {
+    description:
+      'Move by direction enum and distance. Sends XYZ vector to Resonite via WS RPC using FlatKV ArrayValue.' ,
+    inputSchema: { direction: DirectionSchema, distance: z.number() },
+  },
+  async (args: { direction: 'forward'|'back'|'left'|'right'|'up'|'down'; distance: number }) => {
+    const { direction, distance } = args;
+    const d = Math.max(Number(distance), 0);
+    let vec: [number, number, number] = [0, 0, 0];
+    switch (direction) {
+      case 'forward':
+        vec = [0, 0, d];
+        break;
+      case 'back':
+        vec = [0, 0, -d];
+        break;
+      case 'left':
+        vec = [-d, 0, 0];
+        break;
+      case 'right':
+        vec = [d, 0, 0];
+        break;
+      case 'up':
+        vec = [0, d, 0];
+        break;
+      case 'down':
+        vec = [0, -d, 0];
+        break;
+    }
+    const vector = encodeArray(vec);
+    scoped('tool:move').info({ direction, distance, vector }, 'request');
+    await wsServer.request('move', { vector });
+    return { content: [{ type: 'text', text: JSON.stringify({ vector: vec }) }] };
   },
 );
 
@@ -168,7 +262,7 @@ server.registerTool<{
 server.registerTool(
   'get_pose',
   { description: 'Get current global position (x,y,z) and orientation (heading, pitch).' },
-  async (_args: unknown) => {
+  (_args: unknown) => {
     scoped('tool:get_pose').debug('request');
     const pose = poseTracker.get();
     if (!pose) throw new Error('pose unavailable');
