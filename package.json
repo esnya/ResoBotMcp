@@ -49,6 +49,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.4",
     "node-osc": "^10.0.0",
+    "pino": "^9.4.0",
     "ws": "^8.18.3",
     "zod": "^3.25.76"
   }

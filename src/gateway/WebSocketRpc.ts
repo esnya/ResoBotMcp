@@ -8,6 +8,9 @@ import {
   buildResponseError,
 } from './FlatKV.js';
 import { z } from 'zod';
+import { scoped } from '../logging.js';
+
+const log = scoped('ws-rpc');
 
 export const WebSocketConfigSchema = z.object({
   port: z.number().int().min(1).max(65535).default(8765),
@@ -34,6 +37,7 @@ export class WebSocketRpcServer {
   constructor(private readonly config: WebSocketConfig) {
     this.wss = new WebSocketServer({ port: config.port });
     this.wss.on('connection', (ws) => this.onConnection(ws));
+    log.info({ port: config.port }, 'WebSocket RPC listening');
   }
 
   register(method: string, handler: RpcHandler): void {
@@ -45,9 +49,11 @@ export class WebSocketRpcServer {
   }
 
   private onConnection(ws: WebSocket): void {
+    log.info('client connected');
     this.clients.add(ws);
     ws.on('close', () => {
       this.clients.delete(ws);
+      log.info('client disconnected');
     });
     ws.on('message', async (data: WebSocket.RawData) => {
       if (typeof data !== 'string' && !(data instanceof String)) {
@@ -59,6 +65,7 @@ export class WebSocketRpcServer {
         record = FlatKV.decode(text);
       } catch (e) {
         const message = e instanceof Error ? e.message : 'decode error';
+        log.warn({ err: e }, 'failed to decode FlatKV');
         ws.send(FlatKV.encode({ type: 'response', id: '', status: 'error', message }));
         return;
       }
@@ -73,7 +80,7 @@ export class WebSocketRpcServer {
           if (res.status === 'ok') entry.resolve(res.result);
           else entry.reject(new Error(res.message));
         } catch {
-          // ignore invalid response
+          log.warn('invalid response ignored');
         }
         return;
       }
@@ -83,9 +90,11 @@ export class WebSocketRpcServer {
       } catch (e) {
         const message = e instanceof Error ? e.message : 'invalid request';
         const id = record['id'] ?? '';
+        log.warn({ err: e, id }, 'invalid request');
         ws.send(FlatKV.encode({ type: 'response', id, status: 'error', message }));
         return;
       }
+      log.debug({ id: req.id, method: req.method }, 'request received');
       const handler = this.handlers.get(req.method);
       if (!handler) {
         const resp = buildResponseError({
@@ -93,16 +102,19 @@ export class WebSocketRpcServer {
           status: 'error',
           message: 'method not implemented',
         });
+        log.warn({ id: req.id, method: req.method }, 'method not implemented');
         ws.send(FlatKV.encode(resp));
         return;
       }
       try {
         const result = await handler(req.args);
         const resp = buildResponseOk({ id: req.id, status: 'ok', result });
+        log.debug({ id: req.id, method: req.method }, 'response ok');
         ws.send(FlatKV.encode(resp));
       } catch (e) {
         const message = e instanceof Error ? e.message : 'internal error';
         const resp = buildResponseError({ id: req.id, status: 'error', message });
+        log.error({ err: e, id: req.id, method: req.method }, 'handler error');
         ws.send(FlatKV.encode(resp));
       }
     });
@@ -126,6 +138,7 @@ export class WebSocketRpcServer {
         reject(new Error('request timeout'));
       }, timeoutMs);
       this.pending.set(id, { resolve, reject, timer });
+      log.debug({ id, method }, 'sending request');
       ws.send(text);
     });
   }

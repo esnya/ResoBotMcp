@@ -7,6 +7,7 @@ import { WebSocketRpcServer, wsConfigFromEnv } from './gateway/WebSocketRpc.js';
 import { ReadLocalAsset, loadResoniteDataPathFromEnv } from './usecases/ReadLocalAsset.js';
 import { MoveLinearInput } from './usecases/MoveLinear.js';
 import { TurnRelativeInput } from './usecases/TurnRelative.js';
+import { scoped } from './logging.js';
 const InputSchema = {
   text: z.string().min(1, 'text is required'),
 } as const;
@@ -15,9 +16,11 @@ type SendTextArgs = {
 };
 
 const oscTarget = loadOscTargetFromEnv();
+const log = scoped('main');
 const oscSender = new OscSender(oscTarget);
 const sendTextViaOsc = new SendTextViaOsc(oscSender);
 const wsServer = new WebSocketRpcServer(wsConfigFromEnv());
+log.info({ osc: oscTarget }, 'server starting');
 wsServer.register('ping', (args) => {
   const { text } = z.object({ text: z.string() }).parse({ text: args['text'] ?? '' });
   return { text };
@@ -49,6 +52,7 @@ server.registerTool<{
     inputSchema: InputSchema,
   },
   async (args: SendTextArgs) => {
+    scoped('tool:set_text').info('sending text');
     const { text } = args;
     await sendTextViaOsc.execute({ text });
     return { content: [{ type: 'text', text: 'delivered' }] };
@@ -62,6 +66,7 @@ server.registerTool(
     inputSchema: { text: z.string() },
   },
   async (args: { text: string }) => {
+    scoped('tool:ping').debug('ws ping');
     const res = await wsServer.request('ping', { text: args.text ?? '' });
     const parsed = z.object({ text: z.string() }).parse(res);
     return { content: [{ type: 'text', text: parsed.text }] };
@@ -83,6 +88,7 @@ server.registerTool(
     },
   },
   async (args: { fov: number; size: number }) => {
+    scoped('tool:capture_camera').info({ fov: args.fov, size: args.size }, 'request');
     const { fov, size } = args;
     const result = await wsServer.request('camera.capture', {
       fov: String(fov),
@@ -106,6 +112,7 @@ server.registerTool<{
     inputSchema: MoveLinearInput,
   },
   async (args: { forward?: number; right?: number }) => {
+    scoped('tool:move_relative').info(args, 'request');
     const parsed = z.object(MoveLinearInput).parse(args);
     const poseRes = await wsServer.request('bot.pose', {});
     const pose = z
@@ -125,7 +132,8 @@ server.registerTool<{
     const dz = fwd * Math.cos(rad) - right * Math.sin(rad);
     const nx = pose.x + dx;
     const nz = pose.z + dz;
-    await oscSender.sendNumbers('/resobot/pose', nx, pose.y, nz, pose.heading, pose.pitch);
+    // Unify addresses: send position separately
+    await oscSender.sendNumbers('/resobot/position', nx, pose.y, nz);
     return { content: [{ type: 'text', text: 'delivered' }] };
   },
 );
@@ -139,6 +147,7 @@ server.registerTool<{
     inputSchema: TurnRelativeInput,
   },
   async (args: { degrees: number }) => {
+    scoped('tool:turn_relative').info(args, 'request');
     const parsed = z.object(TurnRelativeInput).parse(args);
     const poseRes = await wsServer.request('bot.pose', {});
     const pose = z
@@ -151,7 +160,8 @@ server.registerTool<{
       })
       .parse(poseRes);
     const newHeading = pose.heading + parsed.degrees;
-    await oscSender.sendNumbers('/resobot/pose', pose.x, pose.y, pose.z, newHeading, pose.pitch);
+    // Unify addresses: send rotation separately
+    await oscSender.sendNumbers('/resobot/rotation', newHeading, pose.pitch);
     return { content: [{ type: 'text', text: 'delivered' }] };
   },
 );
@@ -161,6 +171,7 @@ server.registerTool(
   'get_pose',
   { description: 'Get current global position (x,y,z) and orientation (heading, pitch).' },
   async (_args: unknown) => {
+    scoped('tool:get_pose').debug('request');
     const res = await wsServer.request('bot.pose', {});
     const pose = z
       .object({

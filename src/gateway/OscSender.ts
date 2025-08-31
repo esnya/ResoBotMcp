@@ -1,5 +1,8 @@
 import { Client } from 'node-osc';
 import { z } from 'zod';
+import { scoped } from '../logging.js';
+
+const log = scoped('osc');
 
 export type OscTarget = {
   host: string;
@@ -31,12 +34,15 @@ export class OscSender {
       try {
         this.client.send(addr, text, (err: Error | null) => {
           if (err) {
+            log.error({ err, addr }, 'osc send text failed');
             reject(err);
             return;
           }
+          log.debug({ addr }, 'osc send text ok');
           resolve();
         });
       } catch (e) {
+        log.error({ err: e, addr }, 'osc send text threw');
         reject(e as Error);
       }
     });
@@ -50,12 +56,15 @@ export class OscSender {
       try {
         this.client.send(address, ...values, (err: Error | null) => {
           if (err) {
+            log.error({ err, address, values }, 'osc send numbers failed');
             reject(err);
             return;
           }
+          log.debug({ address, values }, 'osc send numbers ok');
           resolve();
         });
       } catch (e) {
+        log.error({ err: e, address, values }, 'osc send numbers threw');
         reject(e as Error);
       }
     });
