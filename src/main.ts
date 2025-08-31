@@ -5,8 +5,9 @@ import { OscSender, loadOscTargetFromEnv } from './gateway/OscSender.js';
 import { SendTextViaOsc } from './usecases/SendTextViaOsc.js';
 import { WebSocketRpcServer, wsConfigFromEnv } from './gateway/WebSocketRpc.js';
 import { ReadLocalAsset, loadResoniteDataPathFromEnv } from './usecases/ReadLocalAsset.js';
-import { MoveLinearInput } from './usecases/MoveLinear.js';
-import { TurnRelativeInput } from './usecases/TurnRelative.js';
+import { MoveRelativeInput, TurnRelativeInput } from './types/controls.js';
+import { OscReceiver, oscIngressConfigFromEnv } from './gateway/OscReceiver.js';
+import { PoseTracker } from './gateway/PoseTracker.js';
 import { scoped } from './logging.js';
 const InputSchema = {
   text: z.string().min(1, 'text is required'),
@@ -21,6 +22,18 @@ const oscSender = new OscSender(oscTarget);
 const sendTextViaOsc = new SendTextViaOsc(oscSender);
 const wsServer = new WebSocketRpcServer(wsConfigFromEnv());
 log.info({ osc: oscTarget }, 'server starting');
+
+// Track pose from OSC ingress
+const poseTracker = new PoseTracker();
+const oscIngress = new OscReceiver(oscIngressConfigFromEnv());
+oscIngress.register('/resobot/position', (args) => {
+  const [x, y, z] = args as number[];
+  poseTracker.updatePosition(Number(x), Number(y), Number(z));
+});
+oscIngress.register('/resobot/rotation', (args) => {
+  const [heading, pitch] = args as number[];
+  poseTracker.updateRotation(Number(heading), Number(pitch));
+});
 wsServer.register('ping', (args) => {
   const { text } = z.object({ text: z.string() }).parse({ text: args['text'] ?? '' });
   return { text };
@@ -29,6 +42,7 @@ wsServer.register('ping', (args) => {
 process.on('exit', () => oscSender.close());
 process.on('SIGINT', () => {
   oscSender.close();
+  oscIngress.close();
   wsServer.close();
   process.exit(0);
 });
@@ -109,21 +123,13 @@ server.registerTool<{
   'move_relative',
   {
     description: 'Move relative to bot axes: forward/right in meters. Sends numeric OSC.',
-    inputSchema: MoveLinearInput,
+    inputSchema: MoveRelativeInput,
   },
   async (args: { forward?: number; right?: number }) => {
     scoped('tool:move_relative').info(args, 'request');
-    const parsed = z.object(MoveLinearInput).parse(args);
-    const poseRes = await wsServer.request('bot.pose', {});
-    const pose = z
-      .object({
-        x: z.coerce.number(),
-        y: z.coerce.number(),
-        z: z.coerce.number(),
-        heading: z.coerce.number(),
-        pitch: z.coerce.number(),
-      })
-      .parse(poseRes);
+    const parsed = z.object(MoveRelativeInput).parse(args);
+    const pose = poseTracker.get();
+    if (!pose) throw new Error('pose unavailable');
     const fwd = parsed.forward ?? 0;
     const right = parsed.right ?? 0;
     if (fwd === 0 && right === 0) return { content: [{ type: 'text', text: 'noop' }] };
@@ -149,16 +155,8 @@ server.registerTool<{
   async (args: { degrees: number }) => {
     scoped('tool:turn_relative').info(args, 'request');
     const parsed = z.object(TurnRelativeInput).parse(args);
-    const poseRes = await wsServer.request('bot.pose', {});
-    const pose = z
-      .object({
-        x: z.coerce.number(),
-        y: z.coerce.number(),
-        z: z.coerce.number(),
-        heading: z.coerce.number(),
-        pitch: z.coerce.number(),
-      })
-      .parse(poseRes);
+    const pose = poseTracker.get();
+    if (!pose) throw new Error('pose unavailable');
     const newHeading = pose.heading + parsed.degrees;
     // Unify addresses: send rotation separately
     await oscSender.sendNumbers('/resobot/rotation', newHeading, pose.pitch);
@@ -172,16 +170,8 @@ server.registerTool(
   { description: 'Get current global position (x,y,z) and orientation (heading, pitch).' },
   async (_args: unknown) => {
     scoped('tool:get_pose').debug('request');
-    const res = await wsServer.request('bot.pose', {});
-    const pose = z
-      .object({
-        x: z.coerce.number(),
-        y: z.coerce.number(),
-        z: z.coerce.number(),
-        heading: z.coerce.number(),
-        pitch: z.coerce.number(),
-      })
-      .parse(res);
+    const pose = poseTracker.get();
+    if (!pose) throw new Error('pose unavailable');
     return { content: [{ type: 'text', text: JSON.stringify(pose) }] };
   },
 );
