@@ -1,0 +1,11 @@
+# Node / build
+node_modules/
+dist/
+coverage/
+
+# Env / editor
+.env
+.env.*
+.DS_Store
+*.log
+*.tsbuildinfo

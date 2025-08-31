@@ -1,0 +1,53 @@
+{
+  "name": "resobotmcp",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MCP stdio server that bridges AI tools to Resonite via OSC/WebSocket/HTTP.",
+  "keywords": [
+    "mcp",
+    "resonite",
+    "osc",
+    "websocket",
+    "http",
+    "bot",
+    "ai",
+    "stdio"
+  ],
+  "author": "esnya",
+  "license": "MIT",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/main.ts",
+    "start": "node dist/main.js",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "fix": "npm run format && npm run lint:fix",
+    "check": "npm run format:check && npm run lint && npm run typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.34.0",
+    "@types/node": "^24.3.0",
+    "@types/node-osc": "^9.1.0",
+    "@vitest/coverage-v8": "^3.2.4",
+    "eslint": "^9.34.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^16.3.0",
+    "prettier": "^3.6.2",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.41.0",
+    "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.17.4",
+    "node-osc": "^10.0.0",
+    "zod": "^3.25.76"
+  }
+}
