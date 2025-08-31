@@ -1,5 +1,12 @@
 import { WebSocketServer, WebSocket } from 'ws';
-import { FlatKV, FlatRecord, parseRequest, buildResponseOk, buildResponseError } from './FlatKV.js';
+import {
+  FlatKV,
+  FlatRecord,
+  parseRequest,
+  parseResponse,
+  buildResponseOk,
+  buildResponseError,
+} from './FlatKV.js';
 import { z } from 'zod';
 
 export const WebSocketConfigSchema = z.object({
@@ -7,11 +14,22 @@ export const WebSocketConfigSchema = z.object({
 });
 export type WebSocketConfig = z.infer<typeof WebSocketConfigSchema>;
 
-export type RpcHandler = (args: Record<string, string>) => Promise<Record<string, string>>;
+export type RpcHandler = (
+  args: Record<string, string>,
+) => Promise<Record<string, string>> | Record<string, string>;
 
 export class WebSocketRpcServer {
   private readonly wss: WebSocketServer;
   private readonly handlers = new Map<string, RpcHandler>();
+  private readonly clients = new Set<WebSocket>();
+  private readonly pending = new Map<
+    string,
+    {
+      resolve: (r: Record<string, string>) => void;
+      reject: (e: Error) => void;
+      timer?: ReturnType<typeof setTimeout>;
+    }
+  >();
 
   constructor(private readonly config: WebSocketConfig) {
     this.wss = new WebSocketServer({ port: config.port });
@@ -27,6 +45,10 @@ export class WebSocketRpcServer {
   }
 
   private onConnection(ws: WebSocket): void {
+    this.clients.add(ws);
+    ws.on('close', () => {
+      this.clients.delete(ws);
+    });
     ws.on('message', async (data: WebSocket.RawData) => {
       if (typeof data !== 'string' && !(data instanceof String)) {
         return;
@@ -38,6 +60,21 @@ export class WebSocketRpcServer {
       } catch (e) {
         const message = e instanceof Error ? e.message : 'decode error';
         ws.send(FlatKV.encode({ type: 'response', id: '', status: 'error', message }));
+        return;
+      }
+      const type = record['type'];
+      if (type === 'response') {
+        try {
+          const res = parseResponse(record);
+          const entry = this.pending.get(res.id);
+          if (!entry) return;
+          this.pending.delete(res.id);
+          if (entry.timer) clearTimeout(entry.timer);
+          if (res.status === 'ok') entry.resolve(res.result);
+          else entry.reject(new Error(res.message));
+        } catch {
+          // ignore invalid response
+        }
         return;
       }
       let req;
@@ -68,6 +105,28 @@ export class WebSocketRpcServer {
         const resp = buildResponseError({ id: req.id, status: 'error', message });
         ws.send(FlatKV.encode(resp));
       }
+    });
+  }
+
+  async request(
+    method: string,
+    args: Record<string, string>,
+    options?: { timeoutMs?: number },
+  ): Promise<Record<string, string>> {
+    const ws = this.clients.values().next().value as WebSocket | undefined;
+    if (!ws) throw new Error('no Resonite client connected');
+    const id = Math.random().toString(36).slice(2, 10);
+    const record: FlatRecord = { type: 'request', id, method };
+    for (const [k, v] of Object.entries(args)) record[`argument.${k}`] = v;
+    const text = FlatKV.encode(record);
+    const timeoutMs = options?.timeoutMs ?? 10000;
+    return await new Promise<Record<string, string>>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        reject(new Error('request timeout'));
+      }, timeoutMs);
+      this.pending.set(id, { resolve, reject, timer });
+      ws.send(text);
     });
   }
 }

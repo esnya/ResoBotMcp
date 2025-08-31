@@ -4,30 +4,22 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio';
 import { OscTextSender, loadOscTargetFromEnv } from './gateway/OscSender.js';
 import { SendTextViaOsc } from './usecases/SendTextViaOsc.js';
 import { WebSocketRpcServer, wsConfigFromEnv } from './gateway/WebSocketRpc.js';
+import { ReadLocalAsset, loadResoniteDataPathFromEnv } from './usecases/ReadLocalAsset.js';
 const InputSchema = {
   text: z.string().min(1, 'text is required'),
-  address: z.string().startsWith('/').optional(),
-  host: z.string().ip({ version: 'v4' }).optional(),
-  port: z.number().int().min(1).max(65535).optional(),
 } as const;
 type SendTextArgs = {
   text: string;
-  address?: string;
-  host?: string;
-  port?: number;
 };
 
 const oscTarget = loadOscTargetFromEnv();
 const oscSender = new OscTextSender(oscTarget);
 const sendTextViaOsc = new SendTextViaOsc(oscSender);
 const wsServer = new WebSocketRpcServer(wsConfigFromEnv());
-// Built-in RPC: sys.ping (Resonite -> Server)
-const SERVER_NAME = 'resonite-mcp';
-const SERVER_VERSION = '0.1.0';
-wsServer.register('sys.ping', () => ({
-  server: `${SERVER_NAME}/${SERVER_VERSION}`,
-  now: String(Date.now()),
-}));
+wsServer.register('ping', (args) => {
+  const { text } = z.object({ text: z.string() }).parse({ text: args['text'] ?? '' });
+  return { text };
+});
 
 process.on('exit', () => oscSender.close());
 process.on('SIGINT', () => {
@@ -48,41 +40,57 @@ const server = new McpServer(
 
 server.registerTool<{
   text: z.ZodString;
-  address: z.ZodOptional<z.ZodString>;
-  host: z.ZodOptional<z.ZodString>;
-  port: z.ZodOptional<z.ZodNumber>;
 }>(
-  'resonite.osc.send_text',
+  'set_text',
   {
     description: 'Send a generic UTF-8 text payload over OSC to Resonite.',
     inputSchema: InputSchema,
   },
   async (args: SendTextArgs) => {
-    const { host, port, address, text } = args;
-    if (host || port) {
-      const { Client } = await import('node-osc');
-      const client = new Client(host ?? oscTarget.host, port ?? oscTarget.port);
-      await new Promise<void>((resolve, reject) => {
-        try {
-          client.send(address ?? oscTarget.address, text, (err: Error | null) => {
-            client.close();
-            if (err) {
-              reject(err);
-              return;
-            }
-            resolve();
-          });
-        } catch (e) {
-          client.close();
-          reject(e as Error);
-        }
-      });
-      return { content: [{ type: 'text', text: 'delivered' }] };
-    }
-    const payload: { text: string; address?: string } = { text };
-    if (address !== undefined) payload.address = address;
-    await sendTextViaOsc.execute(payload);
+    const { text } = args;
+    await sendTextViaOsc.execute({ text });
     return { content: [{ type: 'text', text: 'delivered' }] };
+  },
+);
+
+server.registerTool(
+  'ping',
+  {
+    description: 'Roundtrip a string via Resonite WS ping and echo it back.',
+    inputSchema: { text: z.string() },
+  },
+  async (args: { text: string }) => {
+    const res = await wsServer.request('ping', { text: args.text ?? '' });
+    const parsed = z.object({ text: z.string() }).parse(res);
+    return { content: [{ type: 'text', text: parsed.text }] };
+  },
+);
+
+server.registerTool(
+  'capture_camera',
+  {
+    description: 'Capture via Resonite with {fov,size}; return base64 of local asset.',
+    inputSchema: {
+      fov: z.number(),
+      size: z
+        .number()
+        .int()
+        .min(1, 'size must be >= 1')
+        .max(4096, 'size must be <= 4096')
+        .refine((v) => (v & (v - 1)) === 0, 'size must be a power of two (1..4096)'),
+    },
+  },
+  async (args: { fov: number; size: number }) => {
+    const { fov, size } = args;
+    const result = await wsServer.request('camera.capture', {
+      fov: String(fov),
+      size: String(size),
+    });
+    const { url } = z.object({ url: z.string().startsWith('local://') }).parse(result);
+    const assetCfg = loadResoniteDataPathFromEnv();
+    const reader = new ReadLocalAsset(assetCfg);
+    const b64 = await reader.readBase64FromLocalUrl(url);
+    return { content: [{ type: 'text', text: b64 }] };
   },
 );
 

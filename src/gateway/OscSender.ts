@@ -50,6 +50,6 @@ export class OscTextSender {
 export function loadOscTargetFromEnv(): OscTarget {
   const host = process.env['RESONITE_OSC_HOST']?.trim() || '127.0.0.1';
   const port = Number(process.env['RESONITE_OSC_PORT']?.trim() ?? '9000');
-  const address = process.env['RESONITE_OSC_ADDRESS']?.trim() || '/resonite/text';
+  const address = process.env['RESONITE_OSC_ADDRESS']?.trim() || '/resobot/text';
   return OscTargetSchema.parse({ host, port, address });
 }

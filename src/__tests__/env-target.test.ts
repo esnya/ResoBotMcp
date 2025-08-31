@@ -19,7 +19,7 @@ describe('loadOscTargetFromEnv', () => {
     const t = loadOscTargetFromEnv();
     expect(t.host).toBe('127.0.0.1');
     expect(t.port).toBe(9000);
-    expect(t.address).toBe('/resonite/text');
+    expect(t.address).toBe('/resobot/text');
   });
 
   it('parses valid env values', () => {

@@ -2,8 +2,8 @@
   "editor.defaultFormatter": "esbenp.prettier-vscode",
   "editor.formatOnSave": true,
   "editor.codeActionsOnSave": {
-    "source.fixAll.eslint": true,
-    "source.organizeImports": true
+    "source.fixAll.eslint": "explicit",
+    "source.organizeImports": "explicit"
   },
   "files.eol": "\n",
   "files.insertFinalNewline": true,
@@ -26,5 +26,6 @@
   "vitest.watch": true,
   "vitest.configFile": "vitest.config.ts",
   "vitest.include": ["src/**/*.test.ts", "src/**/__tests__/**/*.ts"],
-  "testing.openTesting": "openOnSessionStart"
+  "testing.openTesting": "openOnSessionStart",
+  "testing.automaticallyOpenTestResults": "openOnSessionStart"
 }

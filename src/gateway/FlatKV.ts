@@ -104,6 +104,32 @@ export type RpcResponseError = {
   message: string;
 };
 
+export function parseResponse(record: FlatRecord): RpcResponseOk | RpcResponseError {
+  const type = record['type'];
+  const id = record['id'] ?? '';
+  const status = record['status'];
+  if (type !== 'response') {
+    throw new Error('not a response');
+  }
+  if (!id || id.length > 64) {
+    throw new Error('invalid id');
+  }
+  if (status === 'ok') {
+    const result: Record<string, string> = {};
+    for (const [k, v] of Object.entries(record)) {
+      if (k.startsWith('result.')) {
+        result[k.slice('result.'.length)] = v;
+      }
+    }
+    return { id, status: 'ok', result };
+  }
+  if (status === 'error') {
+    const message = record['message'] ?? 'error';
+    return { id, status: 'error', message };
+  }
+  throw new Error('invalid response');
+}
+
 export function parseRequest(record: FlatRecord): RpcRequest {
   const type = record['type'];
   const id = record['id'];
