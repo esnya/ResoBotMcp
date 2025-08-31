@@ -25,6 +25,7 @@ export class WebSocketRpcServer {
   private readonly wss: WebSocketServer;
   private readonly handlers = new Map<string, RpcHandler>();
   private readonly clients = new Set<WebSocket>();
+  private readonly connectionWaiters: Array<(ws: WebSocket) => void> = [];
   private readonly pending = new Map<
     string,
     {
@@ -51,6 +52,15 @@ export class WebSocketRpcServer {
   private onConnection(ws: WebSocket): void {
     log.info('client connected');
     this.clients.add(ws);
+    // Notify waiters for first client connection
+    while (this.connectionWaiters.length > 0) {
+      const fn = this.connectionWaiters.shift();
+      try {
+        fn && fn(ws);
+      } catch {
+        // ignore
+      }
+    }
     ws.on('close', () => {
       this.clients.delete(ws);
       log.info('client disconnected');
@@ -135,10 +145,22 @@ export class WebSocketRpcServer {
   async request(
     method: string,
     args: Record<string, string>,
-    options?: { timeoutMs?: number },
+    options?: { timeoutMs?: number; connectTimeoutMs?: number },
   ): Promise<Record<string, string>> {
-    const ws = this.clients.values().next().value as WebSocket | undefined;
-    if (!ws) throw new Error('no Resonite client connected');
+    let ws = this.clients.values().next().value as WebSocket | undefined;
+    if (!ws) {
+      // Wait briefly for a client to connect
+      const connectTimeout = options?.connectTimeoutMs ?? 3000;
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error('no Resonite client connected')), connectTimeout);
+        this.connectionWaiters.push((_ws) => {
+          clearTimeout(timer);
+          resolve();
+        });
+      });
+      ws = this.clients.values().next().value as WebSocket | undefined;
+      if (!ws) throw new Error('no Resonite client connected');
+    }
     const id = Math.random().toString(36).slice(2, 10);
     const record: FlatRecord = { type: 'request', id, method };
     // New format: put args at top-level (no 'argument.' prefix)

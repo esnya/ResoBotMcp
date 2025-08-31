@@ -141,7 +141,7 @@ server.registerTool(
   async (args: { fov: number; size: number }) => {
     scoped('tool:capture_camera').info({ fov: args.fov, size: args.size }, 'request');
     const { fov, size } = args;
-    const result = await wsServer.request('camera.capture', {
+    const result = await wsServer.request('camera_capture', {
       fov: String(fov),
       size: String(size),
     });
@@ -215,7 +215,7 @@ server.registerTool<{
     }
     const vector = encodeArray(vec);
     scoped('tool:move_relative').info({ direction, distance: d, vector }, 'rpc move');
-    await wsServer.request('move.relative', { vector });
+    await wsServer.request('move_relative', { vector });
     return { content: [{ type: 'text', text: JSON.stringify({ vector: vec }) }] };
   },
 );
@@ -231,7 +231,7 @@ server.registerTool<{
   async (args: { degrees: number }) => {
     scoped('tool:turn_relative').info(args, 'request');
     const parsed = z.object(TurnRelativeInput).parse(args);
-    await wsServer.request('turn.relative', { degrees: String(parsed.degrees) });
+    await wsServer.request('turn_relative', { degrees: String(parsed.degrees) });
     scoped('tool:turn_relative').info({ degrees: parsed.degrees }, 'rpc sent');
     return { content: [{ type: 'text', text: JSON.stringify({ degrees: parsed.degrees }) }] };
   },
