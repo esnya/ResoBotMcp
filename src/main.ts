@@ -179,7 +179,7 @@ const DirectionSchema = z.union([
 ]);
 
 server.registerTool<{
-  direction: z.ZodString;
+  direction: typeof DirectionSchema;
   distance: z.ZodNumber;
 }>(
   'move_relative',
