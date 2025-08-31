@@ -21,6 +21,13 @@ const oscTarget = loadOscTargetFromEnv();
 const oscSender = new OscTextSender(oscTarget);
 const sendTextViaOsc = new SendTextViaOsc(oscSender);
 const wsServer = new WebSocketRpcServer(wsConfigFromEnv());
+// Built-in RPC: sys.ping (Resonite -> Server)
+const SERVER_NAME = 'resonite-mcp';
+const SERVER_VERSION = '0.1.0';
+wsServer.register('sys.ping', () => ({
+  server: `${SERVER_NAME}/${SERVER_VERSION}`,
+  now: String(Date.now()),
+}));
 
 process.on('exit', () => oscSender.close());
 process.on('SIGINT', () => {
