@@ -13,7 +13,7 @@ export const OscTargetSchema = z.object({
   address: z.string().startsWith('/'),
 });
 
-export class OscTextSender {
+export class OscSender {
   private client: Client;
   private defaultAddress: string;
 
@@ -30,6 +30,25 @@ export class OscTextSender {
     await new Promise<void>((resolve, reject) => {
       try {
         this.client.send(addr, text, (err: Error | null) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          resolve();
+        });
+      } catch (e) {
+        reject(e as Error);
+      }
+    });
+  }
+
+  async sendNumbers(address: string, ...values: number[]): Promise<void> {
+    if (!address.startsWith('/')) {
+      throw new Error(`OSC address must start with '/': ${address}`);
+    }
+    await new Promise<void>((resolve, reject) => {
+      try {
+        this.client.send(address, ...values, (err: Error | null) => {
           if (err) {
             reject(err);
             return;

@@ -1,10 +1,12 @@
 import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio';
-import { OscTextSender, loadOscTargetFromEnv } from './gateway/OscSender.js';
+import { OscSender, loadOscTargetFromEnv } from './gateway/OscSender.js';
 import { SendTextViaOsc } from './usecases/SendTextViaOsc.js';
 import { WebSocketRpcServer, wsConfigFromEnv } from './gateway/WebSocketRpc.js';
 import { ReadLocalAsset, loadResoniteDataPathFromEnv } from './usecases/ReadLocalAsset.js';
+import { MoveLinearInput } from './usecases/MoveLinear.js';
+import { TurnRelativeInput } from './usecases/TurnRelative.js';
 const InputSchema = {
   text: z.string().min(1, 'text is required'),
 } as const;
@@ -13,7 +15,7 @@ type SendTextArgs = {
 };
 
 const oscTarget = loadOscTargetFromEnv();
-const oscSender = new OscTextSender(oscTarget);
+const oscSender = new OscSender(oscTarget);
 const sendTextViaOsc = new SendTextViaOsc(oscSender);
 const wsServer = new WebSocketRpcServer(wsConfigFromEnv());
 wsServer.register('ping', (args) => {
@@ -91,6 +93,85 @@ server.registerTool(
     const reader = new ReadLocalAsset(assetCfg);
     const b64 = await reader.readBase64FromLocalUrl(url);
     return { content: [{ type: 'text', text: b64 }] };
+  },
+);
+
+server.registerTool<{
+  forward: z.ZodOptional<z.ZodNumber>;
+  right: z.ZodOptional<z.ZodNumber>;
+}>(
+  'move_relative',
+  {
+    description: 'Move relative to bot axes: forward/right in meters. Sends numeric OSC.',
+    inputSchema: MoveLinearInput,
+  },
+  async (args: { forward?: number; right?: number }) => {
+    const parsed = z.object(MoveLinearInput).parse(args);
+    const poseRes = await wsServer.request('bot.pose', {});
+    const pose = z
+      .object({
+        x: z.coerce.number(),
+        y: z.coerce.number(),
+        z: z.coerce.number(),
+        heading: z.coerce.number(),
+        pitch: z.coerce.number(),
+      })
+      .parse(poseRes);
+    const fwd = parsed.forward ?? 0;
+    const right = parsed.right ?? 0;
+    if (fwd === 0 && right === 0) return { content: [{ type: 'text', text: 'noop' }] };
+    const rad = (pose.heading * Math.PI) / 180;
+    const dx = fwd * Math.sin(rad) + right * Math.cos(rad);
+    const dz = fwd * Math.cos(rad) - right * Math.sin(rad);
+    const nx = pose.x + dx;
+    const nz = pose.z + dz;
+    await oscSender.sendNumbers('/resobot/pose', nx, pose.y, nz, pose.heading, pose.pitch);
+    return { content: [{ type: 'text', text: 'delivered' }] };
+  },
+);
+
+server.registerTool<{
+  degrees: z.ZodNumber;
+}>(
+  'turn_relative',
+  {
+    description: 'Turn (yaw) relative in degrees. Sends numeric OSC.',
+    inputSchema: TurnRelativeInput,
+  },
+  async (args: { degrees: number }) => {
+    const parsed = z.object(TurnRelativeInput).parse(args);
+    const poseRes = await wsServer.request('bot.pose', {});
+    const pose = z
+      .object({
+        x: z.coerce.number(),
+        y: z.coerce.number(),
+        z: z.coerce.number(),
+        heading: z.coerce.number(),
+        pitch: z.coerce.number(),
+      })
+      .parse(poseRes);
+    const newHeading = pose.heading + parsed.degrees;
+    await oscSender.sendNumbers('/resobot/pose', pose.x, pose.y, pose.z, newHeading, pose.pitch);
+    return { content: [{ type: 'text', text: 'delivered' }] };
+  },
+);
+
+// MCP tool: get current global position and orientation
+server.registerTool(
+  'get_pose',
+  { description: 'Get current global position (x,y,z) and orientation (heading, pitch).' },
+  async (_args: unknown) => {
+    const res = await wsServer.request('bot.pose', {});
+    const pose = z
+      .object({
+        x: z.coerce.number(),
+        y: z.coerce.number(),
+        z: z.coerce.number(),
+        heading: z.coerce.number(),
+        pitch: z.coerce.number(),
+      })
+      .parse(res);
+    return { content: [{ type: 'text', text: JSON.stringify(pose) }] };
   },
 );
 
