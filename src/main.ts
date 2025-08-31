@@ -3,6 +3,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio';
 import { OscTextSender, loadOscTargetFromEnv } from './gateway/OscSender.js';
 import { SendTextViaOsc } from './usecases/SendTextViaOsc.js';
+import { WebSocketRpcServer, wsConfigFromEnv } from './gateway/WebSocketRpc.js';
 const InputSchema = {
   text: z.string().min(1, 'text is required'),
   address: z.string().startsWith('/').optional(),
@@ -19,10 +20,12 @@ type SendTextArgs = {
 const oscTarget = loadOscTargetFromEnv();
 const oscSender = new OscTextSender(oscTarget);
 const sendTextViaOsc = new SendTextViaOsc(oscSender);
+const wsServer = new WebSocketRpcServer(wsConfigFromEnv());
 
 process.on('exit', () => oscSender.close());
 process.on('SIGINT', () => {
   oscSender.close();
+  wsServer.close();
   process.exit(0);
 });
 
