@@ -5,7 +5,7 @@ import { OscSender, loadOscTargetFromEnv } from './gateway/OscSender.js';
 import { SendTextViaOsc } from './usecases/SendTextViaOsc.js';
 import { WebSocketRpcServer, wsConfigFromEnv } from './gateway/WebSocketRpc.js';
 import { ReadLocalAsset, loadResoniteDataPathFromEnv } from './usecases/ReadLocalAsset.js';
-import { MoveRelativeInput, TurnRelativeInput } from './types/controls.js';
+import { TurnRelativeInput } from './types/controls.js';
 import { SetExpression, SetExpressionInput } from './usecases/SetExpression.js';
 import { SetAccentHue, SetAccentHueInput } from './usecases/SetAccentHue.js';
 import { OscReceiver, oscIngressConfigFromEnv } from './gateway/OscReceiver.js';
@@ -168,25 +168,55 @@ server.registerTool<{
   },
 );
 
+// Directional move (enum + distance), replaces forward/right numeric pair
+const DirectionSchema = z.union([
+  z.literal('forward'),
+  z.literal('back'),
+  z.literal('left'),
+  z.literal('right'),
+  z.literal('up'),
+  z.literal('down'),
+]);
+
 server.registerTool<{
-  forward: z.ZodOptional<z.ZodNumber>;
-  right: z.ZodOptional<z.ZodNumber>;
+  direction: z.ZodString;
+  distance: z.ZodNumber;
 }>(
   'move_relative',
   {
-    description: 'Move relative to bot axes: forward/right in meters. Uses WS RPC; pose still echoed via OSC.',
-    inputSchema: MoveRelativeInput,
+    description:
+      'Move relative by direction enum and distance. Sends XYZ vector via WS RPC; pose echo remains via OSC.',
+    inputSchema: { direction: DirectionSchema, distance: z.number() },
   },
-  async (args: { forward?: number; right?: number }) => {
-    scoped('tool:move_relative').info(args, 'request');
-    const parsed = z.object(MoveRelativeInput).parse(args);
-    const fwd = parsed.forward ?? 0;
-    const right = parsed.right ?? 0;
-    if (fwd === 0 && right === 0) return { content: [{ type: 'text', text: 'noop' }] };
-    await wsServer.request('move.relative', { forward: String(fwd), right: String(right) });
-    const detail = JSON.stringify({ forward: fwd, right });
-    scoped('tool:move_relative').info({ forward: fwd, right }, 'rpc sent');
-    return { content: [{ type: 'text', text: detail }] };
+  async (args: { direction: 'forward' | 'back' | 'left' | 'right' | 'up' | 'down'; distance: number }) => {
+    const { direction, distance } = args;
+    const d = Number(distance);
+    if (!Number.isFinite(d) || d === 0) return { content: [{ type: 'text', text: 'noop' }] };
+    let vec: [number, number, number] = [0, 0, 0];
+    switch (direction) {
+      case 'forward':
+        vec = [0, 0, d];
+        break;
+      case 'back':
+        vec = [0, 0, -d];
+        break;
+      case 'left':
+        vec = [-d, 0, 0];
+        break;
+      case 'right':
+        vec = [d, 0, 0];
+        break;
+      case 'up':
+        vec = [0, d, 0];
+        break;
+      case 'down':
+        vec = [0, -d, 0];
+        break;
+    }
+    const vector = encodeArray(vec);
+    scoped('tool:move_relative').info({ direction, distance: d, vector }, 'rpc move');
+    await wsServer.request('move.relative', { vector });
+    return { content: [{ type: 'text', text: JSON.stringify({ vector: vec }) }] };
   },
 );
 

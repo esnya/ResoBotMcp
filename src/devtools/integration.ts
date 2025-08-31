@@ -140,7 +140,7 @@ async function run(): Promise<number> {
   // move_relative (expects Resonite to echo updated pose)
   try {
     const p0 = await getPose(client);
-    const moveRes = await callToolText(client, 'move_relative', { forward: 1.0 });
+    const moveRes = await callToolText(client, 'move_relative', { direction: 'forward', distance: 1.0 });
     let target: any | undefined;
     try {
       target = JSON.parse(moveRes.text ?? '{}');
@@ -162,7 +162,9 @@ async function run(): Promise<number> {
         changed = true;
         const dx = p1.x - p0.x;
         const dz = p1.z - p0.z;
-        const tStr = target ? `target(${poseStr(target)}) ` : '';
+        const tStr = target && Array.isArray(target.vector)
+          ? `target([${target.vector.join(',')}]) `
+          : '';
         add({
           name: 'move_relative',
           ok: true,
@@ -172,7 +174,9 @@ async function run(): Promise<number> {
       }
     }
     if (!changed) {
-      const tStr = target ? `target(${poseStr(target)}) ` : '';
+      const tStr = target && Array.isArray(target.vector)
+        ? `target([${target.vector.join(',')}]) `
+        : '';
       add({ name: 'move_relative', ok: false, detail: `${tStr}no pose change observed within 3s` });
     }
   } catch (e) {
