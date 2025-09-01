@@ -3,6 +3,9 @@ node_modules/
 dist/
 coverage/
 
+# Integration artifacts
+captures/
+
 # Env / editor
 .env
 .env.*

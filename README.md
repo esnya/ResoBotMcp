@@ -39,6 +39,10 @@ Resonite side: receive a string at the configured OSC address and route to your 
 
 Other tools exposed: `set_expression`, `set_accent_hue`, `move_relative`, `turn_relative`, `get_pose`, `ping`.
 
+- `wait_resonite`
+  - Args: `timeoutMs` (optional)
+  - Returns: `connected` when a Resonite WS client is connected to this server
+
 Source of truth for tool inputs lives in code:
 
 - `src/tools/contracts.ts:1`

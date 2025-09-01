@@ -75,8 +75,6 @@ async function main(): Promise<void> {
     const cfg = wsConfigFromEnv();
     const server = new WebSocketRpcServer(cfg);
     try {
-      // wait briefly for client to connect
-      await new Promise((r) => setTimeout(r, 500));
       const res = await server.request('ping', { text: cmd.text }, { timeoutMs: 5000 });
       const parsed = z.object({ text: z.string() }).parse(res);
       console.log(parsed.text);

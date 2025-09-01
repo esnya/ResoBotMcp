@@ -90,7 +90,10 @@ server.registerTool(
 
 server.registerTool(
   'wait_resonite',
-  { description: 'Wait for Resonite WS connection to this server.', inputSchema: WaitResoniteInput },
+  {
+    description: 'Wait for Resonite WS connection to this server.',
+    inputSchema: WaitResoniteInput,
+  },
   async (args: { timeoutMs?: number | undefined }) => {
     const { timeoutMs } = z.object(WaitResoniteInput).parse(args);
     await ctx.wsServer.waitForConnection(typeof timeoutMs === 'number' ? timeoutMs : 10000);
