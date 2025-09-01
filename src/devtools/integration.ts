@@ -78,11 +78,12 @@ async function run(): Promise<number> {
 
   const steps: StepResult[] = [];
   const add: (s: StepResult) => void = (s) => steps.push(s);
-  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
   const fmt = (n: unknown): string =>
     typeof n === 'number' && Number.isFinite(n) ? n.toFixed(3) : String(n);
-  const poseStr = (p: any): string =>
+  type Pose = { x: number; y: number; z: number; heading: number; pitch: number };
+  const poseStr = (p: Pose): string =>
     `x=${fmt(p.x)} y=${fmt(p.y)} z=${fmt(p.z)} hd=${fmt(p.heading)} pt=${fmt(p.pitch)}`;
 
   async function getPose(client: Client): Promise<{
@@ -140,8 +141,11 @@ async function run(): Promise<number> {
   // move_relative (expects Resonite to echo updated pose)
   try {
     const p0 = await getPose(client);
-    const moveRes = await callToolText(client, 'move_relative', { direction: 'forward', distance: 1.0 });
-    let target: any | undefined;
+    const moveRes = await callToolText(client, 'move_relative', {
+      direction: 'forward',
+      distance: 1.0,
+    });
+    let target: { vector?: unknown[] } | undefined;
     try {
       target = JSON.parse(moveRes.text ?? '{}');
     } catch {
@@ -162,9 +166,8 @@ async function run(): Promise<number> {
         changed = true;
         const dx = p1.x - p0.x;
         const dz = p1.z - p0.z;
-        const tStr = target && Array.isArray(target.vector)
-          ? `target([${target.vector.join(',')}]) `
-          : '';
+        const tStr =
+          target && Array.isArray(target.vector) ? `target([${target.vector.join(',')}]) ` : '';
         add({
           name: 'move_relative',
           ok: true,
@@ -174,9 +177,8 @@ async function run(): Promise<number> {
       }
     }
     if (!changed) {
-      const tStr = target && Array.isArray(target.vector)
-        ? `target([${target.vector.join(',')}]) `
-        : '';
+      const tStr =
+        target && Array.isArray(target.vector) ? `target([${target.vector.join(',')}]) ` : '';
       add({ name: 'move_relative', ok: false, detail: `${tStr}no pose change observed within 3s` });
     }
   } catch (e) {
@@ -187,7 +189,7 @@ async function run(): Promise<number> {
   try {
     const p0 = await getPose(client);
     const turnRes = await callToolText(client, 'turn_relative', { degrees: 45 });
-    let target: any | undefined;
+    let target: { degrees?: number } | undefined;
     try {
       target = JSON.parse(turnRes.text ?? '{}');
     } catch {
@@ -203,14 +205,20 @@ async function run(): Promise<number> {
       if (typeof p1.heading === 'number' && Math.abs(p1.heading - p0.heading) > epsDeg) {
         changed = true;
         const dh = p1.heading - p0.heading;
-        const tStr = target ? `target(hd=${fmt(target.heading)} pt=${fmt(target.pitch)}) ` : '';
+        const tStr =
+          target && typeof target.degrees === 'number' ? `target(deg=${fmt(target.degrees)}) ` : '';
         add({ name: 'turn_relative', ok: true, detail: `${tStr}observed dHeading=${fmt(dh)}` });
         break;
       }
     }
     if (!changed) {
-      const tStr = target ? `target(hd=${fmt(target.heading)} pt=${fmt(target.pitch)}) ` : '';
-      add({ name: 'turn_relative', ok: false, detail: `${tStr}no heading change observed within 3s` });
+      const tStr =
+        target && typeof target.degrees === 'number' ? `target(deg=${fmt(target.degrees)}) ` : '';
+      add({
+        name: 'turn_relative',
+        ok: false,
+        detail: `${tStr}no heading change observed within 3s`,
+      });
     }
   } catch (e) {
     add({ name: 'turn_relative', ok: false, detail: (e as Error).message });

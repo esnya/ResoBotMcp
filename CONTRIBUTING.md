@@ -10,5 +10,10 @@ Key points:
 - Consistency: keep defaults (ports/addresses) centralized and in sync across code, tools, and docs.
 - Quality gates: `npm run check` (format/lint/typecheck) and `npm test` must pass in CI.
 
-Thank you for contributing!
+PR labels used by policy checks:
 
+- `breaking`: mark PRs with breaking changes; requires a filled Migration section.
+- `allow-large-pr`: temporarily allow >800 changed lines when splitting is impractical (justify in PR body).
+- `skip-policy`: bypass policy checks in emergencies (explain why in the PR body).
+
+Thank you for contributing!

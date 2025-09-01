@@ -34,6 +34,7 @@ export default tseslint.config(
 
       // Stricter TS rules
       '@typescript-eslint/explicit-function-return-type': ['error', { allowExpressions: true }],
+      '@typescript-eslint/explicit-module-boundary-types': 'error',
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
       '@typescript-eslint/no-floating-promises': 'error',
@@ -63,6 +64,13 @@ export default tseslint.config(
     },
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
+      'no-console': 'off',
+    },
+  },
+  {
+    // Devtools can log freely; not part of protocol transports
+    files: ['src/devtools/**/*.ts'],
+    rules: {
       'no-console': 'off',
     },
   },

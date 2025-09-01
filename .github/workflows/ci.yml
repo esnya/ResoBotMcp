@@ -3,18 +3,71 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [ master, main ]
+    branches: [master, main]
 
 jobs:
-  build:
+  pr-checklist:
+    name: PR Checklist
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
-      - run: npm ci
-      - run: npm run check
-      - run: npm test --silent
+      - name: Validate PR checklist
+        env:
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+        run: node .github/scripts/check-pr-checklist.mjs
 
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - name: Determine docs-only change
+        id: changes
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+        run: |
+          set -euo pipefail
+          echo "Computing changed files..."
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            BASE=$(jq -r .pull_request.base.sha "$GITHUB_EVENT_PATH")
+            HEAD=$(jq -r .pull_request.head.sha "$GITHUB_EVENT_PATH")
+          else
+            # Fallback for push events
+            BASE="HEAD^"
+            HEAD="HEAD"
+          fi
+          git diff --name-only "$BASE" "$HEAD" > changed_files.txt
+          cat changed_files.txt
+          # Consider docs-only when all changes are within docs and top-level docs files
+          docs_only=true
+          while IFS= read -r file; do
+            case "$file" in
+              docs/*|README.md|AGENTS.md|CONTRIBUTING.md|.github/PULL_REQUEST_TEMPLATE.md)
+                ;;
+              *)
+                docs_only=false
+                ;;
+            esac
+          done < changed_files.txt
+          echo "docs_only=$docs_only"
+          echo "docs_only=$docs_only" >> "$GITHUB_OUTPUT"
+      - run: npm ci
+        if: steps.changes.outputs.docs_only != 'true'
+      - name: Prettier check (always)
+        run: npm run format:check
+      - name: Lint + typecheck
+        if: steps.changes.outputs.docs_only != 'true'
+        run: npm run lint && npm run typecheck
+      - name: Tests
+        if: steps.changes.outputs.docs_only != 'true'
+        run: npm test --silent

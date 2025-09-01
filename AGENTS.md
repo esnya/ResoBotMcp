@@ -93,4 +93,3 @@ See `docs/CONFIGURATION.md` for patterns and examples.
 
 - Prefer small, cohesive changes. Rename early when names clarify intent.
 - If code needs comments to understand, redesign it. Only doc comments allowed where unavoidable.
-

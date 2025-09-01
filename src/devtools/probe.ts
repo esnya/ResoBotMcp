@@ -64,7 +64,7 @@ function parseArgs(argv: string[]): Command {
     }
     default:
       throw new Error(
-        'usage: probe <ws:ping|osc:set-expression|osc:set-accent-hue|osc:expression-seq> [--text|--eyesId|--mouthId|--hue|--delayMs]'
+        'usage: probe <ws:ping|osc:set-expression|osc:set-accent-hue|osc:expression-seq> [--text|--eyesId|--mouthId|--hue|--delayMs]',
       );
   }
 }
@@ -89,7 +89,7 @@ async function main(): Promise<void> {
   try {
     if (cmd.kind === 'osc:expression-seq') {
       const uc = new SetExpression(oscSender);
-      const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+      const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
       const steps: Array<{ eyesId?: string; mouthId?: string }> = [
         { eyesId: 'winkL', mouthId: 'smile_big' },
         { eyesId: 'sparkle', mouthId: 'smile_big' },
