@@ -43,7 +43,8 @@ export default tseslint.config(
       '@typescript-eslint/no-confusing-void-expression': ['error', { ignoreArrowShorthand: true }],
 
       // JS hygiene
-      'no-console': ['warn', { allow: ['error'] }],
+      // Production code must not use console (stderr-only via pino allowed).
+      'no-console': ['error', { allow: ['error'] }],
       'no-implicit-coercion': 'error',
       'no-restricted-syntax': [
         'error',

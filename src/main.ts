@@ -12,9 +12,13 @@ import { OscReceiver, oscIngressConfigFromEnv } from './gateway/OscReceiver.js';
 import { PoseTracker } from './gateway/PoseTracker.js';
 import { scoped } from './logging.js';
 import { encodeArray } from './gateway/FlatKV.js';
-const InputSchema = {
-  text: z.string().min(1, 'text is required'),
-} as const;
+import {
+  ToolContracts,
+  SetTextInput,
+  DirectionSchema,
+  PingInput,
+  CaptureCameraInput,
+} from './tools/contracts.js';
 type SendTextArgs = {
   text: string;
 };
@@ -73,7 +77,7 @@ server.registerTool(
   'set_text',
   {
     description: 'Send a generic UTF-8 text payload over OSC to Resonite.',
-    inputSchema: InputSchema,
+    inputSchema: SetTextInput,
   },
   async (args: SendTextArgs) => {
     scoped('tool:set_text').info('sending text');
@@ -100,7 +104,7 @@ server.registerTool(
   'ping',
   {
     description: 'Roundtrip a string via Resonite WS ping and echo it back.',
-    inputSchema: { text: z.string() },
+    inputSchema: PingInput,
   },
   async (args: { text: string }) => {
     scoped('tool:ping').debug('ws ping');
@@ -114,15 +118,7 @@ server.registerTool(
   'capture_camera',
   {
     description: 'Capture via Resonite with {fov,size}; return base64 of local asset.',
-    inputSchema: {
-      fov: z.number(),
-      size: z
-        .number()
-        .int()
-        .min(1, 'size must be >= 1')
-        .max(4096, 'size must be <= 4096')
-        .refine((v) => (v & (v - 1)) === 0, 'size must be a power of two (1..4096)'),
-    },
+    inputSchema: CaptureCameraInput,
   },
   async (args: { fov: number; size: number }) => {
     scoped('tool:capture_camera').info({ fov: args.fov, size: args.size }, 'request');
@@ -153,15 +149,6 @@ server.registerTool(
 );
 
 // Directional move (enum + distance), replaces forward/right numeric pair
-const DirectionSchema = z.union([
-  z.literal('forward'),
-  z.literal('back'),
-  z.literal('left'),
-  z.literal('right'),
-  z.literal('up'),
-  z.literal('down'),
-]);
-
 server.registerTool(
   'move_relative',
   {

@@ -3,40 +3,16 @@
 This repository uses a consistent configuration pattern to ensure clarity, safety, and portability.
 
 - Each constructor accepts a single `Config` object.
-- `Config` must be JSON-serializable.
-- Validate with `zod` and expose helpers:
-  - `fromEnv()` to build config from environment variables.
-  - `toJSON()` or return a plain object when needed.
+- `Config` is JSON-serializable and validated with zod.
+- Provide `fromEnv()` helpers to parse and validate external input at the boundary.
 
-Example (TypeScript):
+Single source of truth: Defaults live in code. Do not duplicate default values in docs. See:
 
-```ts
-import { z } from 'zod';
+- OSC egress target: `src/gateway/OscSender.ts:80`
+- WebSocket RPC: `src/gateway/WebSocketRpc.ts:184`
+- OSC ingress: `src/gateway/OscReceiver.ts:37`
+- Local asset path: `src/usecases/ReadLocalAsset.ts:37`
 
-export const OscConfigSchema = z.object({
-  host: z.string().ip({ version: 'v4' }),
-  port: z.number().int().min(1).max(65535),
-  address: z.string().startsWith('/'),
-});
-
-export type OscConfig = z.infer<typeof OscConfigSchema>;
-
-export function oscConfigFromEnv(): OscConfig {
-  const host = process.env['RESONITE_OSC_HOST'] ?? '127.0.0.1';
-  const port = Number(process.env['RESONITE_OSC_PORT'] ?? '9000');
-  const address = process.env['RESONITE_OSC_ADDRESS'] ?? '/resonite/text';
-  return OscConfigSchema.parse({ host, port, address });
-}
-
-export class OscTextSender {
-  constructor(private readonly config: OscConfig) {}
-}
-```
-
-```ts
-// Usage
-const cfg = oscConfigFromEnv();
-const sender = new OscTextSender(cfg);
-```
-
-Avoid comments in config and code; let names and types carry intent. Use doc comments in rare cases where unavoidable.
+Notes
+- OSC text address is fixed in code to `/resobot/text`.
+- Avoid comments in config; let names and types carry intent. Use doc comments only when unavoidable.

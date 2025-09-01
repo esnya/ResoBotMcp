@@ -19,7 +19,7 @@ Protocol specifics live in `docs/PROTOCOL_WS_RPC.md` (do not duplicate here).
 ## Ubiquitous Language
 
 - ResoniteLink: boundary to the Resonite world.
-- OscTextSender: OSC text egress.
+- OSC text egress: outbound text channel via OSC.
 - SendTextViaOsc: deliver text to the world.
 - Ingress: WS/HTTP receivers from Resonite (future).
 - FlatKV: flat key=value codec (see Protocol docs for encoding rules).

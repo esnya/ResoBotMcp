@@ -22,8 +22,9 @@ Minimal MCP (Model Context Protocol) stdio server that connects AI tools to a Re
 
 - `RESONITE_OSC_HOST` (default `127.0.0.1`)
 - `RESONITE_OSC_PORT` (default `9000`)
-- `RESONITE_OSC_ADDRESS` (default `/resobot/text`)
 - `RESONITE_DATA_PATH` (required for `capture_camera`): Resonite data root that contains the `Assets/` directory where captured files are written.
+
+OSC address for text egress is fixed to `/resobot/text` in code.
 
 Resonite side: receive a string at the configured OSC address and route to your UI or speech component.
 
