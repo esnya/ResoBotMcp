@@ -68,7 +68,10 @@ server.registerTool(
       return { content: [{ type: 'text', text: filename }] };
     } catch (e) {
       const err = e as Error & { raw?: string };
-      const raw = typeof (err as { raw?: unknown }).raw === 'string' ? `; raw=${(err as { raw?: string }).raw}` : '';
+      const raw =
+        typeof (err as { raw?: unknown }).raw === 'string'
+          ? `; raw=${(err as { raw?: string }).raw}`
+          : '';
       return { isError: true, content: [{ type: 'text', text: `ws error: ${err.message}${raw}` }] };
     }
   },

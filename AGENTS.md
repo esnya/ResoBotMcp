@@ -69,6 +69,7 @@ See `docs/CONFIGURATION.md` for patterns and examples.
 - Do not document what code already makes obvious.
 - Prefer pointing to directories/modules over repeating implementation.
 - Keep this guide concise and non‑redundant; move extended notes to `docs/`.
+- MCP tool docs are minimal: one‑line description. If argument names convey intent, omit per‑field explanations and obvious constraints. Let zod contracts and concise error messages guide usage. Favor short, actionable errors (include raw/protocol snippets when helpful) to help LLMs self‑correct while conserving context length.
 
 ## Security
 
