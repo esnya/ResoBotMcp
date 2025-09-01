@@ -6,7 +6,12 @@ import { SetExpression, SetExpressionInput } from '../usecases/SetExpression.js'
 import { SetAccentHue, SetAccentHueInput } from '../usecases/SetAccentHue.js';
 import { filenameFromLocalUrl } from '../gateway/LocalWhitelistResources.js';
 import { TurnRelativeInput } from '../types/controls.js';
-import { SetTextInput, DirectionSchema, PingInput, CaptureCameraInput } from '../tools/contracts.js';
+import {
+  SetTextInput,
+  DirectionSchema,
+  PingInput,
+  CaptureCameraInput,
+} from '../tools/contracts.js';
 
 const log = scoped('tool');
 const setExpression = new SetExpression(ctx.oscSender);
@@ -15,7 +20,10 @@ const setAccentHue = new SetAccentHue(ctx.oscSender);
 // Register tools at import-time (declarative style)
 server.registerTool(
   'set_text',
-  { description: 'Send a generic UTF-8 text payload over OSC to Resonite.', inputSchema: SetTextInput },
+  {
+    description: 'Send a generic UTF-8 text payload over OSC to Resonite.',
+    inputSchema: SetTextInput,
+  },
   async (args: { text: string }) => {
     const { text } = z.object(SetTextInput).parse(args);
     await ctx.sendTextViaOsc.execute({ text });
@@ -25,7 +33,10 @@ server.registerTool(
 
 server.registerTool(
   'set_expression',
-  { description: 'Set expression by preset identifiers (eyesId/mouthId).', inputSchema: SetExpressionInput },
+  {
+    description: 'Set expression by preset identifiers (eyesId/mouthId).',
+    inputSchema: SetExpressionInput,
+  },
   async (args: { eyesId?: string | undefined; mouthId?: string | undefined }) => {
     await setExpression.execute(args);
     return { content: [{ type: 'text', text: 'delivered' }] };
@@ -34,7 +45,10 @@ server.registerTool(
 
 server.registerTool(
   'ping',
-  { description: 'Roundtrip a string via Resonite WS ping and echo it back.', inputSchema: PingInput },
+  {
+    description: 'Roundtrip a string via Resonite WS ping and echo it back.',
+    inputSchema: PingInput,
+  },
   async (args: { text: string }) => {
     const res = await ctx.wsServer.request('ping', { text: args.text ?? '' });
     const parsed = z.object({ text: z.string() }).parse(res);
@@ -51,7 +65,10 @@ server.registerTool(
   async (args: { fov: number; size: number }) => {
     const { fov, size } = z.object(CaptureCameraInput).parse(args);
     log.info({ name: 'capture_camera', fov, size }, 'request');
-    const result = await ctx.wsServer.request('camera_capture', { fov: String(fov), size: String(size) });
+    const result = await ctx.wsServer.request('camera_capture', {
+      fov: String(fov),
+      size: String(size),
+    });
     const { url } = z.object({ url: z.string().startsWith('local://') }).parse(result);
     const filename = filenameFromLocalUrl(url);
     return { content: [{ type: 'text', text: filename }] };
@@ -60,7 +77,10 @@ server.registerTool(
 
 server.registerTool(
   'set_accent_hue',
-  { description: 'Set accent hue in degrees (0..360). Normalized to 0..1 for OSC.', inputSchema: SetAccentHueInput },
+  {
+    description: 'Set accent hue in degrees (0..360). Normalized to 0..1 for OSC.',
+    inputSchema: SetAccentHueInput,
+  },
   async (args: { hue: number }) => {
     await setAccentHue.execute(args);
     return { content: [{ type: 'text', text: 'delivered' }] };
@@ -70,10 +90,14 @@ server.registerTool(
 server.registerTool(
   'move_relative',
   {
-    description: 'Move relative by direction enum and distance. Sends XYZ vector via WS RPC; pose echo remains via OSC.',
+    description:
+      'Move relative by direction enum and distance. Sends XYZ vector via WS RPC; pose echo remains via OSC.',
     inputSchema: { direction: DirectionSchema, distance: z.number() },
   },
-  async (args: { direction: 'forward' | 'back' | 'left' | 'right' | 'up' | 'down'; distance: number }) => {
+  async (args: {
+    direction: 'forward' | 'back' | 'left' | 'right' | 'up' | 'down';
+    distance: number;
+  }) => {
     const d = Number(args.distance);
     if (!Number.isFinite(d) || d === 0) return { content: [{ type: 'text', text: 'noop' }] };
     let vec: [number, number, number] = [0, 0, 0];
@@ -105,7 +129,10 @@ server.registerTool(
 
 server.registerTool(
   'turn_relative',
-  { description: 'Turn (yaw) relative in degrees. Uses WS RPC; pose still echoed via OSC.', inputSchema: TurnRelativeInput },
+  {
+    description: 'Turn (yaw) relative in degrees. Uses WS RPC; pose still echoed via OSC.',
+    inputSchema: TurnRelativeInput,
+  },
   async (args: { degrees: number }) => {
     const parsed = z.object(TurnRelativeInput).parse(args);
     await ctx.wsServer.request('turn_relative', { degrees: String(parsed.degrees) });
@@ -122,4 +149,3 @@ server.registerTool(
     return { content: [{ type: 'text', text: JSON.stringify(pose) }] };
   },
 );
-

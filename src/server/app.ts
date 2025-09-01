@@ -10,4 +10,3 @@ export const server = new McpServer(
     instructions: 'MCP server exposing tools to interact with Resonite via OSC.',
   },
 );
-
