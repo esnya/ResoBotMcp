@@ -250,21 +250,19 @@ async function run(): Promise<number> {
     add({ name: 'ping(ws)', ok: false, detail: (e as Error).message });
   }
 
-  // capture_camera (always; requires WS method + local asset available)
+  // capture_camera (always; server returns base64 (URL-encoded))
   try {
     const res = await callToolText(client, 'capture_camera', { fov: 60, size: 512 });
-    const filename = res.text ?? '';
-    if (!filename) throw new Error('capture returned empty filename');
-    const dataRoot = process.env['RESONITE_DATA_PATH'];
-    if (!dataRoot) throw new Error('RESONITE_DATA_PATH is required to locate assets');
-    const assetsRoot = path.resolve(dataRoot, 'Assets');
-    const src = path.resolve(assetsRoot, filename);
+    const encoded = res.text ?? '';
+    if (!encoded) throw new Error('capture returned empty');
+    const b64 = decodeURIComponent(encoded);
+    const bin = Buffer.from(b64, 'base64');
     const outDir = process.env['INTEGRATION_OUT']
       ? path.resolve(String(process.env['INTEGRATION_OUT']))
       : path.resolve(root, 'captures');
     await fs.mkdir(outDir, { recursive: true });
-    const dest = path.resolve(outDir, filename);
-    await fs.copyFile(src, dest);
+    const dest = path.resolve(outDir, `capture_${Date.now()}.png`);
+    await fs.writeFile(dest, bin);
     add({ name: 'capture_camera', ok: true, detail: dest });
   } catch (e) {
     add({ name: 'capture_camera', ok: false, detail: (e as Error).message });

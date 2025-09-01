@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { SetExpressionInput } from '../usecases/SetExpression.js';
 import { SetAccentHueInput } from '../usecases/SetAccentHue.js';
-import { TurnRelativeInput } from '../types/controls.js';
 
 // Single place to declare MCP tool contracts (inputs). Keep code as the source of truth.
 
@@ -25,6 +24,12 @@ export const DirectionSchema = z.union([
 export const MoveRelativeInput = {
   direction: DirectionSchema,
   distance: z.number(),
+} as const;
+
+export const MoveRelativeSchema = z.object(MoveRelativeInput);
+
+export const TurnRelativeInput = {
+  degrees: z.number(),
 } as const;
 
 export const CaptureCameraInput = {

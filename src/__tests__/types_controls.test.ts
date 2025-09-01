@@ -1,12 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { MoveRelativeSchema, TurnRelativeSchema } from '../types/controls.js';
+import { z } from 'zod';
+import { MoveRelativeSchema, TurnRelativeInput } from '../tools/contracts.js';
 
-describe('controls schemas', () => {
-  it('MoveRelativeSchema accepts forward/right numbers', () => {
-    expect(() => MoveRelativeSchema.parse({ forward: 1.5, right: -0.25 })).not.toThrow();
+describe('tool contracts', () => {
+  it('MoveRelativeSchema accepts direction+distance', () => {
+    expect(() => MoveRelativeSchema.parse({ direction: 'forward', distance: 1.25 })).not.toThrow();
   });
 
-  it('TurnRelativeSchema requires degrees', () => {
-    expect(() => TurnRelativeSchema.parse({ degrees: 90 })).not.toThrow();
+  it('TurnRelativeInput requires degrees', () => {
+    expect(() => z.object(TurnRelativeInput).parse({ degrees: 90 })).not.toThrow();
   });
 });

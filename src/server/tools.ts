@@ -1,18 +1,18 @@
 import { z } from 'zod';
-import { server, ctx } from './app.js';
-import { scoped } from '../logging.js';
 import { encodeArray } from '../gateway/FlatKV.js';
-import { SetExpression, SetExpressionInput } from '../usecases/SetExpression.js';
-import { SetAccentHue, SetAccentHueInput } from '../usecases/SetAccentHue.js';
-import { filenameFromLocalUrl } from '../gateway/LocalWhitelistResources.js';
-import { TurnRelativeInput } from '../types/controls.js';
+import { ReadLocalAsset, loadResoniteDataPathFromEnv } from '../usecases/ReadLocalAsset.js';
+import { scoped } from '../logging.js';
 import {
-  SetTextInput,
+  CaptureCameraInput,
   DirectionSchema,
   PingInput,
-  CaptureCameraInput,
+  SetTextInput,
   WaitResoniteInput,
 } from '../tools/contracts.js';
+import { TurnRelativeInput } from '../tools/contracts.js';
+import { SetAccentHue, SetAccentHueInput } from '../usecases/SetAccentHue.js';
+import { SetExpression, SetExpressionInput } from '../usecases/SetExpression.js';
+import { ctx, server } from './app.js';
 
 const log = scoped('tool');
 const setExpression = new SetExpression(ctx.oscSender);
@@ -24,7 +24,7 @@ server.registerTool(
   { description: 'Send text via OSC.', inputSchema: SetTextInput },
   async (args: { text: string }) => {
     const { text } = z.object(SetTextInput).parse(args);
-    await ctx.sendTextViaOsc.execute({ text });
+    await ctx.oscSender.sendText(text, '/virtualbot/text');
     return { content: [{ type: 'text', text: 'delivered' }] };
   },
 );
@@ -50,7 +50,7 @@ server.registerTool(
 
 server.registerTool(
   'capture_camera',
-  { description: 'Capture; returns filename.', inputSchema: CaptureCameraInput },
+  { description: 'Capture; returns base64 (URL-encoded).', inputSchema: CaptureCameraInput },
   async (args: { fov: number; size: number }) => {
     const { fov, size } = z.object(CaptureCameraInput).parse(args);
     log.info({ name: 'capture_camera', fov, size }, 'request');
@@ -64,8 +64,11 @@ server.registerTool(
         const msg = 'invalid ws response: missing url';
         return { isError: true, content: [{ type: 'text', text: `${msg}; raw=${raw}` }] };
       }
-      const filename = filenameFromLocalUrl(parsed.data.url);
-      return { content: [{ type: 'text', text: filename }] };
+      const assetCfg = loadResoniteDataPathFromEnv();
+      const reader = new ReadLocalAsset(assetCfg);
+      const b64 = await reader.readBase64FromLocalUrl(parsed.data.url);
+      const encoded = encodeURIComponent(b64);
+      return { content: [{ type: 'text', text: encoded }] };
     } catch (e) {
       const err = e as Error & { raw?: string };
       const raw =
