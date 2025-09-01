@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { OscSender } from '../gateway/OscSender.js';
+import { ADDR } from '../gateway/addresses.js';
 import { readExpressionPreset } from '../gateway/Presets.js';
 
 export const SetExpressionInput = {
@@ -16,11 +17,11 @@ export class SetExpression {
     const parsed = SetExpressionSchema.parse(args);
     if (parsed.eyesId !== undefined) {
       const text = await readExpressionPreset('eyes', parsed.eyesId);
-      await this.osc.sendText(text, '/virtualbot/expression/eyes');
+      await this.osc.sendTextAt(ADDR.expression.eyes, text);
     }
     if (parsed.mouthId !== undefined) {
       const text = await readExpressionPreset('mouth', parsed.mouthId);
-      await this.osc.sendText(text, '/virtualbot/expression/mouth');
+      await this.osc.sendTextAt(ADDR.expression.mouth, text);
     }
     return { delivered: true } as const;
   }

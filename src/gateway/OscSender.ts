@@ -1,6 +1,7 @@
 import { Client } from 'node-osc';
 import { z } from 'zod';
 import { scoped } from '../logging.js';
+import { ADDR } from './addresses.js';
 
 const log = scoped('osc');
 
@@ -25,8 +26,8 @@ export class OscSender {
     this.defaultAddress = target.address;
   }
 
-  async sendText(text: string, address?: string): Promise<void> {
-    const addr = address ?? this.defaultAddress;
+  async sendText(text: string): Promise<void> {
+    const addr = this.defaultAddress;
     if (!addr.startsWith('/')) {
       throw new Error(`OSC address must start with '/': ${addr}`);
     }
@@ -43,6 +44,28 @@ export class OscSender {
         });
       } catch (e) {
         log.error({ err: e, addr }, 'osc send text threw');
+        reject(e as Error);
+      }
+    });
+  }
+
+  async sendTextAt(address: string, text: string): Promise<void> {
+    if (!address.startsWith('/')) {
+      throw new Error(`OSC address must start with '/': ${address}`);
+    }
+    await new Promise<void>((resolve, reject) => {
+      try {
+        this.client.send(address, text, (err: Error | null) => {
+          if (err) {
+            log.error({ err, addr: address }, 'osc send text failed');
+            reject(err);
+            return;
+          }
+          log.debug({ addr: address }, 'osc send text ok');
+          resolve();
+        });
+      } catch (e) {
+        log.error({ err: e, addr: address }, 'osc send text threw');
         reject(e as Error);
       }
     });
@@ -81,6 +104,6 @@ export function loadOscTargetFromEnv(): OscTarget {
   const host = process.env['RESONITE_OSC_HOST']?.trim() || '127.0.0.1';
   const port = Number(process.env['RESONITE_OSC_PORT']?.trim() ?? '9000');
   // Address is intentionally fixed to avoid hidden defaults divergence across tools/docs
-  const address = '/resobot/text';
+  const address = ADDR.text;
   return OscTargetSchema.parse({ host, port, address });
 }
