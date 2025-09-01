@@ -10,11 +10,13 @@ import {
   WaitResoniteInput,
   SetArmPositionInput,
   SetLampInput,
+  TurnRelativeInput,
+  SetArmGrabInput,
 } from '../tools/contracts.js';
-import { TurnRelativeInput } from '../tools/contracts.js';
 import { SetAccentHue, SetAccentHueInput } from '../usecases/SetAccentHue.js';
 import { SetExpression, SetExpressionInput } from '../usecases/SetExpression.js';
 import { ctx, server } from './app.js';
+import { ADDR } from '../gateway/addresses.js';
 
 const log = scoped('tool');
 const setExpression = new SetExpression(ctx.oscSender);
@@ -38,7 +40,7 @@ server.registerTool(
   async (args: { x: number; y: number; z: number }) => {
     const parsed = z.object(SetArmPositionInput).parse(args);
     const { x, y, z: zPos } = parsed;
-    await ctx.oscSender.sendNumbers('/virtualbot/arm/position', x, y, zPos);
+    await ctx.oscSender.sendNumbers(ADDR.arm.position, x, y, zPos);
     return { content: [{ type: 'text', text: 'delivered' }] };
   },
 );
@@ -110,13 +112,13 @@ server.registerTool(
     const { state, on, brightness, temperature } = z.object(SetLampInput).parse(args);
     const resolvedState: 'off' | 'on' = state ?? (on ? 'on' : 'off');
     const stateInt = resolvedState === 'on' ? 2 : 0;
-    await ctx.oscSender.sendNumbers('/virtualbot/lamp/state', stateInt);
+    await ctx.oscSender.sendNumbers(ADDR.lamp.state, stateInt);
     if (typeof brightness === 'number') {
       const b = Math.min(1, Math.max(0, brightness));
-      await ctx.oscSender.sendNumbers('/virtualbot/lamp/brightness', b);
+      await ctx.oscSender.sendNumbers(ADDR.lamp.brightness, b);
     }
     if (typeof temperature === 'number') {
-      await ctx.oscSender.sendNumbers('/virtualbot/lamp/temperature', temperature);
+      await ctx.oscSender.sendNumbers(ADDR.lamp.temperature, temperature);
     }
     return { content: [{ type: 'text', text: 'delivered' }] };
   },
@@ -133,21 +135,17 @@ server.registerTool(
     await ctx.wsServer.waitForConnection(typeof timeoutMs === 'number' ? timeoutMs : 10000);
     return { content: [{ type: 'text', text: 'connected' }] };
   },
-
 );
-
 
 // Arm grab toggle (on/off)
 server.registerTool(
   'set_arm_grab',
-  { description: 'Arm grab on/off.', inputSchema: { state: z.union([z.literal('off'), z.literal('on')]).optional(), on: z.boolean().optional() } },
+  { description: 'Arm grab on/off.', inputSchema: SetArmGrabInput },
   async (args: Record<string, unknown>) => {
-    const parsed = z
-      .object({ state: z.union([z.literal('off'), z.literal('on')]).optional(), on: z.boolean().optional() })
-      .parse(args);
+    const parsed = z.object(SetArmGrabInput).parse(args);
     const desiredOn = parsed.state ? parsed.state === 'on' : Boolean(parsed.on);
     const flag = desiredOn ? 1 : 0;
-    await ctx.oscSender.sendNumbers('/virtualbot/arm/grab', flag);
+    await ctx.oscSender.sendNumbers(ADDR.arm.grab, flag);
     return { content: [{ type: 'text', text: 'delivered' }] };
   },
 );

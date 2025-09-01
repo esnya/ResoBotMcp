@@ -3,6 +3,7 @@ import { wsConfigFromEnv, WebSocketRpcServer } from '../gateway/WebSocketRpc.js'
 import { SetExpression } from '../usecases/SetExpression.js';
 import { SetAccentHue } from '../usecases/SetAccentHue.js';
 import { z } from 'zod';
+import { ADDR } from '../gateway/addresses.js';
 
 type Command =
   | { kind: 'ws:ping'; text: string }
@@ -106,9 +107,9 @@ async function main(): Promise<void> {
     if (cmd.kind === 'osc:pose') {
       const host = process.env['RESONITE_OSC_LISTEN_HOST'] ?? '127.0.0.1';
       const port = Number(process.env['RESONITE_OSC_LISTEN_PORT'] ?? '9010');
-      const ingress = new OscSender({ host, port, address: '/virtualbot/position' });
-      await ingress.sendNumbers('/virtualbot/position', cmd.x, cmd.y, cmd.z);
-      await ingress.sendNumbers('/virtualbot/rotation', cmd.heading, cmd.pitch);
+      const ingress = new OscSender({ host, port, address: ADDR.pose.position });
+      await ingress.sendNumbers(ADDR.pose.position, cmd.x, cmd.y, cmd.z);
+      await ingress.sendNumbers(ADDR.pose.rotation, cmd.heading, cmd.pitch);
       ingress.close();
       console.log('pose delivered');
       return;

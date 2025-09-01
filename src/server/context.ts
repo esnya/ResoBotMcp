@@ -4,6 +4,7 @@ import { OscReceiver, oscIngressConfigFromEnv } from '../gateway/OscReceiver.js'
 import { PoseTracker } from '../gateway/PoseTracker.js';
 import { ArmContactTracker } from '../gateway/ArmContactTracker.js';
 import { scoped } from '../logging.js';
+import { ADDR } from '../gateway/addresses.js';
 
 export type AppContext = {
   oscSender: OscSender;
@@ -25,12 +26,12 @@ export function createAppContext(): AppContext {
   const oscIngress = new OscReceiver(oscIngressConfigFromEnv());
 
   // Wire OSC ingress to pose tracker
-  oscIngress.register('/virtualbot/position', (args) => {
+  oscIngress.register(ADDR.pose.position, (args) => {
     const [x, y, z] = args as number[];
     poseTracker.updatePosition(Number(x), Number(y), Number(z));
     scoped('osc:position').debug({ x: Number(x), y: Number(y), z: Number(z) }, 'position updated');
   });
-  oscIngress.register('/virtualbot/rotation', (args) => {
+  oscIngress.register(ADDR.pose.rotation, (args) => {
     const [heading, pitch] = args as number[];
     poseTracker.updateRotation(Number(heading), Number(pitch));
     scoped('osc:rotation').debug(
@@ -40,14 +41,14 @@ export function createAppContext(): AppContext {
   });
 
   // Arm contact: metadata (string) and grabbed flag (number/bool)
-  oscIngress.register('/virtualbot/arm/contact/meta', (args) => {
+  oscIngress.register(ADDR.arm.contact.meta, (args) => {
     const [meta] = args as unknown[];
     if (typeof meta === 'string') {
       armContact.updateMeta(meta);
       scoped('osc:arm-contact').debug({ meta }, 'arm meta updated');
     }
   });
-  oscIngress.register('/virtualbot/arm/contact/grabbed', (args) => {
+  oscIngress.register(ADDR.arm.contact.grabbed, (args) => {
     const [flag] = args as unknown[];
     const grabbed = typeof flag === 'number' ? Number(flag) !== 0 : Boolean(flag);
     armContact.updateGrabbed(grabbed);
