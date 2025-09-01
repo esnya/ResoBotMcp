@@ -139,6 +139,14 @@ async function run(): Promise<number> {
     add({ name: 'set_accent_hue', ok: false, detail: (e as Error).message });
   }
 
+  // Ensure WS connection from Resonite is ready (wait tool)
+  try {
+    await callToolText(client, 'wait_resonite', { timeoutMs: 10000 });
+    add({ name: 'wait_resonite', ok: true });
+  } catch (e) {
+    add({ name: 'wait_resonite', ok: false, detail: (e as Error).message });
+  }
+
   // move_relative (expects Resonite to echo updated pose)
   try {
     const p0 = await getPose(client);
@@ -242,26 +250,24 @@ async function run(): Promise<number> {
     add({ name: 'ping(ws)', ok: false, detail: (e as Error).message });
   }
 
-  // capture_camera (optional; requires WS method + local asset available)
-  if (process.env['INTEGRATION_CAPTURE'] === '1') {
-    try {
-      const res = await callToolText(client, 'capture_camera', { fov: 60, size: 512 });
-      const filename = res.text ?? '';
-      if (!filename) throw new Error('capture returned empty filename');
-      const dataRoot = process.env['RESONITE_DATA_PATH'];
-      if (!dataRoot) throw new Error('RESONITE_DATA_PATH is required to locate assets');
-      const assetsRoot = path.resolve(dataRoot, 'Assets');
-      const src = path.resolve(assetsRoot, filename);
-      const outDir = process.env['INTEGRATION_OUT']
-        ? path.resolve(String(process.env['INTEGRATION_OUT']))
-        : path.resolve(root, 'captures');
-      await fs.mkdir(outDir, { recursive: true });
-      const dest = path.resolve(outDir, filename);
-      await fs.copyFile(src, dest);
-      add({ name: 'capture_camera', ok: true, detail: dest });
-    } catch (e) {
-      add({ name: 'capture_camera', ok: false, detail: (e as Error).message });
-    }
+  // capture_camera (always; requires WS method + local asset available)
+  try {
+    const res = await callToolText(client, 'capture_camera', { fov: 60, size: 512 });
+    const filename = res.text ?? '';
+    if (!filename) throw new Error('capture returned empty filename');
+    const dataRoot = process.env['RESONITE_DATA_PATH'];
+    if (!dataRoot) throw new Error('RESONITE_DATA_PATH is required to locate assets');
+    const assetsRoot = path.resolve(dataRoot, 'Assets');
+    const src = path.resolve(assetsRoot, filename);
+    const outDir = process.env['INTEGRATION_OUT']
+      ? path.resolve(String(process.env['INTEGRATION_OUT']))
+      : path.resolve(root, 'captures');
+    await fs.mkdir(outDir, { recursive: true });
+    const dest = path.resolve(outDir, filename);
+    await fs.copyFile(src, dest);
+    add({ name: 'capture_camera', ok: true, detail: dest });
+  } catch (e) {
+    add({ name: 'capture_camera', ok: false, detail: (e as Error).message });
   }
 
   // Summarize
@@ -272,13 +278,6 @@ async function run(): Promise<number> {
     console.log(`${status} ${s.name}${s.detail ? ` - ${s.detail}` : ''}`);
   }
   console.log(`\nSummary: ${okCount}/${total} passed`);
-  // Ensure WS connection from Resonite is ready (wait tool)
-  try {
-    await callToolText(client, 'wait_resonite', { timeoutMs: 10000 });
-    add({ name: 'wait_resonite', ok: true });
-  } catch (e) {
-    add({ name: 'wait_resonite', ok: false, detail: (e as Error).message });
-  }
 
   await transport.close();
   return okCount === total ? 0 : 1;

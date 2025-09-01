@@ -162,19 +162,20 @@ export class WebSocketRpcServer {
   ): Promise<Record<string, string>> {
     let ws = this.clients.values().next().value as WebSocket | undefined;
     if (!ws) {
-      // Wait briefly for a client to connect
-      const connectTimeout = options?.connectTimeoutMs ?? 3000;
-      await new Promise<void>((resolve, reject) => {
-        const timer = setTimeout(
-          () => reject(new Error('no Resonite client connected')),
-          connectTimeout,
-        );
-        this.connectionWaiters.push((_ws) => {
-          clearTimeout(timer);
-          resolve();
+      const connectTimeout = options?.connectTimeoutMs ?? 0;
+      if (connectTimeout > 0) {
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(
+            () => reject(new Error('no Resonite client connected')),
+            connectTimeout,
+          );
+          this.connectionWaiters.push((_ws) => {
+            clearTimeout(timer);
+            resolve();
+          });
         });
-      });
-      ws = this.clients.values().next().value as WebSocket | undefined;
+        ws = this.clients.values().next().value as WebSocket | undefined;
+      }
       if (!ws) throw new Error('no Resonite client connected');
     }
     const id = Math.random().toString(36).slice(2, 10);
