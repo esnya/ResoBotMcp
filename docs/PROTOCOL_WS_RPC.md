@@ -36,6 +36,8 @@ Normative spec for message exchange between Resonite (client) and this server us
 ## Methods
 
 - Application methods are intentionally not defined here. Define your own set under the above envelope (e.g., `bot.say`) and keep arguments/results flat.
+- For this repository, canonical MCP tool inputs are defined in code at:
+  - `src/tools/contracts.ts:1`
 
 ## Errors
 

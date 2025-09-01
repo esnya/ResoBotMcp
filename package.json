@@ -17,6 +17,9 @@
   "license": "MIT",
   "main": "index.js",
   "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
     "dev": "tsx src/main.ts",
     "probe": "tsx src/devtools/probe.ts",
