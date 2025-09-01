@@ -50,7 +50,7 @@ server.registerTool(
 
 server.registerTool(
   'capture_camera',
-  { description: 'Capture; returns base64 (URL-encoded).', inputSchema: CaptureCameraInput },
+  { description: 'Capture; returns image (base64).', inputSchema: CaptureCameraInput },
   async (args: { fov: number; size: number }) => {
     const { fov, size } = z.object(CaptureCameraInput).parse(args);
     log.info({ name: 'capture_camera', fov, size }, 'request');
@@ -67,8 +67,7 @@ server.registerTool(
       const assetCfg = loadResoniteDataPathFromEnv();
       const reader = new ReadLocalAsset(assetCfg);
       const b64 = await reader.readBase64FromLocalUrl(parsed.data.url);
-      const encoded = encodeURIComponent(b64);
-      return { content: [{ type: 'text', text: encoded }] };
+      return { content: [{ type: 'image', data: b64, mimeType: 'image/png' }] } as const;
     } catch (e) {
       const err = e as Error & { raw?: string };
       const raw =

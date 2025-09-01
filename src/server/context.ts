@@ -1,5 +1,4 @@
 import { OscSender, loadOscTargetFromEnv } from '../gateway/OscSender.js';
-import { SendTextViaOsc } from '../usecases/SendTextViaOsc.js';
 import { WebSocketRpcServer, wsConfigFromEnv } from '../gateway/WebSocketRpc.js';
 import { OscReceiver, oscIngressConfigFromEnv } from '../gateway/OscReceiver.js';
 import { PoseTracker } from '../gateway/PoseTracker.js';
@@ -7,7 +6,6 @@ import { scoped } from '../logging.js';
 
 export type AppContext = {
   oscSender: OscSender;
-  sendTextViaOsc: SendTextViaOsc;
   wsServer: WebSocketRpcServer;
   poseTracker: PoseTracker;
   oscIngress: OscReceiver;
@@ -19,7 +17,6 @@ export function createAppContext(): AppContext {
   log.info({ osc: oscTarget }, 'server starting');
 
   const oscSender = new OscSender(oscTarget);
-  const sendTextViaOsc = new SendTextViaOsc(oscSender);
   const wsServer = new WebSocketRpcServer(wsConfigFromEnv());
   const poseTracker = new PoseTracker();
   const oscIngress = new OscReceiver(oscIngressConfigFromEnv());
@@ -45,5 +42,5 @@ export function createAppContext(): AppContext {
     return { text };
   });
 
-  return { oscSender, sendTextViaOsc, wsServer, poseTracker, oscIngress };
+  return { oscSender, wsServer, poseTracker, oscIngress };
 }

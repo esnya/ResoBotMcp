@@ -8,8 +8,15 @@ import { fileURLToPath } from 'node:url';
 
 type StepResult = { name: string; ok: boolean; detail?: string };
 
-const McpTextResult = z.object({
-  content: z.array(z.object({ type: z.literal('text'), text: z.string() })).optional(),
+const McpResult = z.object({
+  content: z
+    .array(
+      z.union([
+        z.object({ type: z.literal('text'), text: z.string() }),
+        z.object({ type: z.literal('image'), data: z.string(), mimeType: z.string() }),
+      ]),
+    )
+    .optional(),
   isError: z.boolean().optional(),
   structuredContent: z.unknown().optional(),
 });
@@ -20,8 +27,14 @@ async function callToolText(
   args: Record<string, unknown>,
 ): Promise<{ text: string | undefined; raw: unknown }> {
   const res = (await client.callTool({ name, arguments: args })) as unknown;
-  const parsed = McpTextResult.safeParse(res);
-  const text = parsed.success ? parsed.data.content?.[0]?.text : undefined;
+  const parsed = McpResult.safeParse(res);
+  let text: string | undefined;
+  if (parsed.success) {
+    const firstText = parsed.data.content?.find(
+      (c): c is { type: 'text'; text: string } => (c as { type: string }).type === 'text',
+    );
+    text = firstText?.text;
+  }
   // MCP error handling: if the tool responded with isError, raise it.
   if (parsed.success && parsed.data.isError) {
     const message = text ?? `tool ${name} returned an error`;
@@ -31,6 +44,22 @@ async function callToolText(
     throw new Error(`tool ${name} returned no text`);
   }
   return { text, raw: res };
+}
+
+async function callToolImage(
+  client: Client,
+  name: string,
+  args: Record<string, unknown>,
+): Promise<{ data: string; mimeType: string; raw: unknown }> {
+  const res = (await client.callTool({ name, arguments: args })) as unknown;
+  const parsed = McpResult.safeParse(res);
+  if (!parsed.success) throw new Error(`tool ${name} returned invalid content`);
+  const first = parsed.data.content?.find(
+    (c): c is { type: 'image'; data: string; mimeType: string } =>
+      (c as { type: string }).type === 'image',
+  );
+  if (!first) throw new Error(`tool ${name} returned no image`);
+  return { data: first.data, mimeType: first.mimeType, raw: res };
 }
 
 async function seedPose(
@@ -250,18 +279,19 @@ async function run(): Promise<number> {
     add({ name: 'ping(ws)', ok: false, detail: (e as Error).message });
   }
 
-  // capture_camera (always; server returns base64 (URL-encoded))
+  // capture_camera (always; server returns image (data+mimeType))
   try {
-    const res = await callToolText(client, 'capture_camera', { fov: 60, size: 512 });
-    const encoded = res.text ?? '';
-    if (!encoded) throw new Error('capture returned empty');
-    const b64 = decodeURIComponent(encoded);
+    const res = await callToolImage(client, 'capture_camera', { fov: 60, size: 512 });
+    const mime = res.mimeType || 'application/octet-stream';
+    const b64 = res.data || '';
+    if (!b64) throw new Error('empty image payload');
     const bin = Buffer.from(b64, 'base64');
     const outDir = process.env['INTEGRATION_OUT']
       ? path.resolve(String(process.env['INTEGRATION_OUT']))
       : path.resolve(root, 'captures');
     await fs.mkdir(outDir, { recursive: true });
-    const dest = path.resolve(outDir, `capture_${Date.now()}.png`);
+    const ext = mime.includes('png') ? 'png' : mime.includes('jpeg') ? 'jpg' : 'bin';
+    const dest = path.resolve(outDir, `capture_${Date.now()}.${ext}`);
     await fs.writeFile(dest, bin);
     add({ name: 'capture_camera', ok: true, detail: dest });
   } catch (e) {
