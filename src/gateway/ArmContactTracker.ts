@@ -20,4 +20,3 @@ export class ArmContactTracker {
     return this.contact;
   }
 }
-
