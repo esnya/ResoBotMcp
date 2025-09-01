@@ -152,7 +152,10 @@ export class WebSocketRpcServer {
       // Wait briefly for a client to connect
       const connectTimeout = options?.connectTimeoutMs ?? 3000;
       await new Promise<void>((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error('no Resonite client connected')), connectTimeout);
+        const timer = setTimeout(
+          () => reject(new Error('no Resonite client connected')),
+          connectTimeout,
+        );
         this.connectionWaiters.push((_ws) => {
           clearTimeout(timer);
           resolve();
@@ -163,7 +166,6 @@ export class WebSocketRpcServer {
     }
     const id = Math.random().toString(36).slice(2, 10);
     const record: FlatRecord = { type: 'request', id, method };
-    // New format: put args at top-level (no 'argument.' prefix)
     for (const [k, v] of Object.entries(args)) record[k] = v;
     const text = FlatKV.encode(record);
     const timeoutMs = options?.timeoutMs ?? 10000;

@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { OscSender, loadOscTargetFromEnv } from './gateway/OscSender.js';
 import { SendTextViaOsc } from './usecases/SendTextViaOsc.js';
 import { WebSocketRpcServer, wsConfigFromEnv } from './gateway/WebSocketRpc.js';
@@ -39,7 +39,10 @@ oscIngress.register('/virtualbot/position', (args) => {
 oscIngress.register('/virtualbot/rotation', (args) => {
   const [heading, pitch] = args as number[];
   poseTracker.updateRotation(Number(heading), Number(pitch));
-  scoped('osc:rotation').debug({ heading: Number(heading), pitch: Number(pitch) }, 'rotation updated');
+  scoped('osc:rotation').debug(
+    { heading: Number(heading), pitch: Number(pitch) },
+    'rotation updated',
+  );
 });
 wsServer.register('ping', (args) => {
   const { text } = z.object({ text: z.string() }).parse({ text: args['text'] ?? '' });
@@ -64,23 +67,9 @@ const server = new McpServer(
   },
 );
 
-async function sleep(ms: number): Promise<void> {
-  await new Promise((r) => setTimeout(r, ms));
-}
+// (removed unused waitForPose helper)
 
-async function waitForPose(timeoutMs = 3000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const p = poseTracker.get();
-    if (p) return p;
-    await sleep(50);
-  }
-  throw new Error('pose unavailable: timeout waiting for initial pose');
-}
-
-server.registerTool<{
-  text: z.ZodString;
-}>(
+server.registerTool(
   'set_text',
   {
     description: 'Send a generic UTF-8 text payload over OSC to Resonite.',
@@ -94,16 +83,13 @@ server.registerTool<{
   },
 );
 
-server.registerTool<{
-  eyesId: z.ZodOptional<z.ZodString>;
-  mouthId: z.ZodOptional<z.ZodString>;
-}>(
+server.registerTool(
   'set_expression',
   {
     description: 'Set expression by preset identifiers (eyesId/mouthId).',
     inputSchema: SetExpressionInput,
   },
-  async (args: { eyesId?: string; mouthId?: string }) => {
+  async (args: { eyesId?: string | undefined; mouthId?: string | undefined }) => {
     scoped('tool:set_expression').info(args, 'request');
     await setExpression.execute(args);
     return { content: [{ type: 'text', text: 'delivered' }] };
@@ -153,9 +139,7 @@ server.registerTool(
   },
 );
 
-server.registerTool<{
-  hue: z.ZodNumber;
-}>(
+server.registerTool(
   'set_accent_hue',
   {
     description: 'Set accent hue in degrees (0..360). Normalized to 0..1 for OSC.',
@@ -178,17 +162,17 @@ const DirectionSchema = z.union([
   z.literal('down'),
 ]);
 
-server.registerTool<{
-  direction: typeof DirectionSchema;
-  distance: z.ZodNumber;
-}>(
+server.registerTool(
   'move_relative',
   {
     description:
       'Move relative by direction enum and distance. Sends XYZ vector via WS RPC; pose echo remains via OSC.',
     inputSchema: { direction: DirectionSchema, distance: z.number() },
   },
-  async (args: { direction: 'forward' | 'back' | 'left' | 'right' | 'up' | 'down'; distance: number }) => {
+  async (args: {
+    direction: 'forward' | 'back' | 'left' | 'right' | 'up' | 'down';
+    distance: number;
+  }) => {
     const { direction, distance } = args;
     const d = Number(distance);
     if (!Number.isFinite(d) || d === 0) return { content: [{ type: 'text', text: 'noop' }] };
@@ -220,9 +204,7 @@ server.registerTool<{
   },
 );
 
-server.registerTool<{
-  degrees: z.ZodNumber;
-}>(
+server.registerTool(
   'turn_relative',
   {
     description: 'Turn (yaw) relative in degrees. Uses WS RPC; pose still echoed via OSC.',
@@ -252,7 +234,7 @@ server.registerTool(
 );
 
 const transport = new StdioServerTransport();
-server.connect(transport).catch((err) => {
+server.connect(transport).catch((err: unknown) => {
   console.error('Failed to start MCP stdio server:', err);
   process.exit(1);
 });

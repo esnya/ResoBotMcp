@@ -12,7 +12,7 @@ This document describes what the Resonite side needs to implement to use the min
   - `type=request`
   - `id=<id>`
   - `method=<methodName>` (e.g., `ping`)
-  - `argument.<name>=<value>` for each argument (none for `ping`).
+  - Add each argument as a top-level key, e.g., `text=Hello` (none for `ping`).
 - Encode with FlatKV (pair sep US 0x1F, key/value sep GS 0x1D, percent-encoding).
 - Send as a single WebSocket text frame.
 
@@ -21,14 +21,14 @@ This document describes what the Resonite side needs to implement to use the min
 - Wait for a text frame.
 - Decode FlatKV into key–value pairs.
 - Match `type=response` and `id=<same id>`.
-- If `status=ok`: read `result.<name>` pairs.
+- If `status=ok`: read result fields from top-level keys (all keys except `type/id/status/message`).
 - If `status=error`: read `message` and handle locally (log, UI, retry, etc.).
 - Apply a timeout (e.g., 5000 ms) if no response arrives; treat as local error and cancel/ignore late responses.
 
 ## Example (ping)
 
-- Request pairs: `type=request`, `id=abc123`, `method=ping`
-- Response pairs on success: `type=response`, `id=abc123`, `status=ok`, `result.server=<name/version>`, `result.now=<ms-since-epoch>`
+- Request pairs: `type=request`, `id=abc123`, `method=ping`, `text=Hello world!`
+- Response pairs on success: `type=response`, `id=abc123`, `status=ok`, `text=Hello world!`
 
 ## Notes
 

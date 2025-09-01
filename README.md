@@ -1,11 +1,11 @@
 # ResoBot MCP
 
-Minimal MCP (Model Context Protocol) stdio server that connects AI tools to a Resonite bot via OSC first, with room to add WebSocket and HTTP bridges.
+Minimal MCP (Model Context Protocol) stdio server that connects AI tools to a Resonite bot via OSC, with room to add WebSocket and HTTP bridges.
 
 ## Features
 
 - MCP stdio server powered by `@modelcontextprotocol/sdk`
-- Tool: `resonite.osc.send_text` – send generic UTF-8 text over OSC
+- Tool: `set_text` — send generic UTF-8 text over OSC
 - Strong TypeScript config and strict linting/formatting
 - Vitest test setup with coverage
 
@@ -13,7 +13,7 @@ Minimal MCP (Model Context Protocol) stdio server that connects AI tools to a Re
 
 - Install: `npm i`
 - Dev (stdio): `npm run dev`
-- Build: `npm run build`
+- Start: `npm start` (tsx)
 - Lint fix + format: `npm run fix`
 - Check (format + lint + types): `npm run check`
 - Test: `npm run test`
@@ -27,12 +27,13 @@ Minimal MCP (Model Context Protocol) stdio server that connects AI tools to a Re
 
 Resonite side: receive a string at the configured OSC address and route to your UI or speech component.
 
-## MCP Tool
+## MCP Tools
 
-- Name: `resonite.osc.send_text`
-- Args:
-  - `text` (string, required)
-- Returns: literal text "delivered" (UDP best-effort)
+- `set_text`
+  - Args: `text` (string, required)
+  - Returns: literal text "delivered" (UDP best-effort)
+
+Other tools exposed: `set_expression`, `set_accent_hue`, `move_relative`, `turn_relative`, `get_pose`, `ping`.
 
 ## VS Code
 
@@ -46,13 +47,13 @@ Recommended extensions are in `.vscode/extensions.json`.
 
 ## Project Scripts
 
-- `dev` – run MCP stdio server with tsx
-- `probe` – optional, manual probe for Resonite side (WS/OSC)
-- `integration` – run a consolidated end-to-end check against the MCP server
-- `build` – type-check and emit to `dist`
-- `fix` – Prettier write + ESLint --fix
-- `check` – Prettier check + ESLint + TS typecheck
-- `test`, `test:watch` – Vitest
+- `dev` — run MCP stdio server with tsx
+- `probe` — optional, manual probe for Resonite side (WS/OSC)
+- `integration` — run a consolidated end-to-end check against the MCP server
+- `build` — type-check only (no emit)
+- `fix` — Prettier write + ESLint --fix
+- `check` — Prettier check + ESLint + TS typecheck
+- `test`, `test:watch` — Vitest
 
 ## Roadmap
 

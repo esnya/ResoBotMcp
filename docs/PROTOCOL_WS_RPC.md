@@ -1,6 +1,6 @@
-# Minimal WebSocket RPC (Resonite ↔ Server)
+# Minimal WebSocket RPC (Resonite <-> Server)
 
-Normative spec for message exchange between Resonite (client) and this server using a flat key–value codec over WebSocket text frames.
+Normative spec for message exchange between Resonite (client) and this server using a flat key-value codec over WebSocket text frames.
 
 - Transport: WebSocket (text frames, UTF-8). Resonite is the client.
 - Endpoint: `ws://<host>:<port>/` (port configurable, default 8765).
@@ -43,17 +43,17 @@ Normative spec for message exchange between Resonite (client) and this server us
 
 ## Limits
 
-- Messages SHOULD be ≤ 4 KiB. Larger messages MAY be rejected.
+- Messages SHOULD be <= 4 KiB. Larger messages MAY be rejected.
 - Keys MUST be ASCII; values are arbitrary Unicode strings encoded per FlatKV.
 
 ---
 
 ## FlatKV Codec
 
-Flat key–value serialization using ASCII control separators chosen for meaning.
+Flat key-value serialization using ASCII control separators chosen for meaning.
 
-- Pair separator: Unit Separator (US, `0x1F`). Separates individual key–value pairs.
-- Key–value separator: Group Separator (GS, `0x1D`). Separates key from value.
+- Pair separator: Unit Separator (US, `0x1F`). Separates individual key-value pairs.
+- Key-value separator: Group Separator (GS, `0x1D`). Separates key from value.
 - Record Separator (RS, `0x1E`) is reserved (not used over WS frames).
 
 ### Grammar (conceptual)
@@ -75,14 +75,14 @@ value := percent-encoded UTF-8 text (see below)
 
 ### Example
 
-- Logical pairs: `type=req`, `id=abc123`, `method=bot.say`, `arg.text=Hello world!`
+- Logical pairs: `type=req`, `id=abc123`, `method=bot.say`, `text=Hello world!`
 - Encoded (showing control names):
-  - `type` GS `req` US `id` GS `abc123` US `method` GS `bot.say` US `arg.text` GS `Hello%20world%21`
+  - `type` GS `req` US `id` GS `abc123` US `method` GS `bot.say` US `text` GS `Hello%20world%21`
 - Hex bytes (excerpt): `74 79 70 65 1D 72 65 71 1F 69 64 1D 61 62 63 31 32 33 ...`
 
 ### Notes
 
-- Keys are flat. Use dots to convey hierarchy (e.g., `arg.text`, `result.delivered`).
+- Keys are flat. Use dots to convey hierarchy only when needed (e.g., `pose.x`).
 - Values are opaque strings to the transport; typing is method-specific.
 
 ### ArrayValue (convention)

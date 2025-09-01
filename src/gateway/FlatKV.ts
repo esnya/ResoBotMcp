@@ -137,18 +137,9 @@ export function parseResponse(record: FlatRecord): RpcResponseOk | RpcResponseEr
   if (status === 'ok') {
     const result: Record<string, string> = {};
     const reserved = new Set(['type', 'id', 'status', 'message', 'method']);
-    // Prefer top-level keys (new format)
     for (const [k, v] of Object.entries(record)) {
       if (reserved.has(k)) continue;
-      if (k.startsWith('result.')) continue; // handled below
       result[k] = v;
-    }
-    // Back-compat: also accept result.* keys
-    for (const [k, v] of Object.entries(record)) {
-      if (k.startsWith('result.')) {
-        const kk = k.slice('result.'.length);
-        if (!(kk in result)) result[kk] = v;
-      }
     }
     return { id, status: 'ok', result };
   }
@@ -174,19 +165,9 @@ export function parseRequest(record: FlatRecord): RpcRequest {
   }
   const args: Record<string, string> = {};
   const reserved = new Set(['type', 'id', 'method', 'status', 'message']);
-  // New format: top-level keys are arguments (excluding reserved)
   for (const [k, v] of Object.entries(record)) {
     if (reserved.has(k)) continue;
-    if (k.startsWith('result.')) continue; // response-only
-    if (k.startsWith('argument.')) continue; // handled below for back-compat
     args[k] = v;
-  }
-  // Back-compat: allow argument.*
-  for (const [k, v] of Object.entries(record)) {
-    if (k.startsWith('argument.')) {
-      const kk = k.slice('argument.'.length);
-      if (!(kk in args)) args[kk] = v;
-    }
   }
   return { id, method, args };
 }
