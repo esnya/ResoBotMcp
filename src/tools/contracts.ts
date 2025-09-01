@@ -37,12 +37,17 @@ export const CaptureCameraInput = {
     .refine((v) => (v & (v - 1)) === 0, 'size must be a power of two (1..4096)'),
 } as const;
 
+export const WaitResoniteInput = {
+  timeoutMs: z.number().int().min(1).optional(),
+} as const;
+
 export const ToolContracts = {
   set_text: { inputSchema: SetTextInput },
   set_expression: { inputSchema: SetExpressionInput },
   set_accent_hue: { inputSchema: SetAccentHueInput },
   ping: { inputSchema: PingInput },
   capture_camera: { inputSchema: CaptureCameraInput },
+  wait_resonite: { inputSchema: WaitResoniteInput },
   move_relative: { inputSchema: MoveRelativeInput },
   turn_relative: { inputSchema: TurnRelativeInput },
   get_pose: { inputSchema: {} as const },

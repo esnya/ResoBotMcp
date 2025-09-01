@@ -11,6 +11,7 @@ import {
   DirectionSchema,
   PingInput,
   CaptureCameraInput,
+  WaitResoniteInput,
 } from '../tools/contracts.js';
 
 const log = scoped('tool');
@@ -84,6 +85,16 @@ server.registerTool(
   async (args: { hue: number }) => {
     await setAccentHue.execute(args);
     return { content: [{ type: 'text', text: 'delivered' }] };
+  },
+);
+
+server.registerTool(
+  'wait_resonite',
+  { description: 'Wait for Resonite WS connection to this server.', inputSchema: WaitResoniteInput },
+  async (args: { timeoutMs?: number | undefined }) => {
+    const { timeoutMs } = z.object(WaitResoniteInput).parse(args);
+    await ctx.wsServer.waitForConnection(typeof timeoutMs === 'number' ? timeoutMs : 10000);
+    return { content: [{ type: 'text', text: 'connected' }] };
   },
 );
 

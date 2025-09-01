@@ -49,6 +49,19 @@ export class WebSocketRpcServer {
     this.wss.close();
   }
 
+  // Wait for at least one client connection, with timeout
+  async waitForConnection(timeoutMs: number = 10000): Promise<void> {
+    const existing = this.clients.values().next().value as WebSocket | undefined;
+    if (existing) return;
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('no Resonite client connected')), timeoutMs);
+      this.connectionWaiters.push((_ws) => {
+        clearTimeout(timer);
+        resolve();
+      });
+    });
+  }
+
   private onConnection(ws: WebSocket): void {
     log.info('client connected');
     this.clients.add(ws);
