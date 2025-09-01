@@ -26,7 +26,7 @@ server.registerTool(
   { description: 'Send text via OSC.', inputSchema: SetTextInput },
   async (args: { text: string }) => {
     const { text } = z.object(SetTextInput).parse(args);
-    await ctx.oscSender.sendText(text, '/virtualbot/text');
+    await ctx.oscSender.sendText(text);
     return { content: [{ type: 'text', text: 'delivered' }] };
   },
 );
@@ -107,13 +107,16 @@ server.registerTool(
   'set_lamp',
   { description: 'Lamp on/off and brightness.', inputSchema: SetLampInput },
   async (args: Record<string, unknown>) => {
-    const { state, on, brightness } = z.object(SetLampInput).parse(args);
+    const { state, on, brightness, temperature } = z.object(SetLampInput).parse(args);
     const resolvedState: 'off' | 'on' = state ?? (on ? 'on' : 'off');
     const stateInt = resolvedState === 'on' ? 2 : 0;
     await ctx.oscSender.sendNumbers('/virtualbot/lamp/state', stateInt);
     if (typeof brightness === 'number') {
       const b = Math.min(1, Math.max(0, brightness));
       await ctx.oscSender.sendNumbers('/virtualbot/lamp/brightness', b);
+    }
+    if (typeof temperature === 'number') {
+      await ctx.oscSender.sendNumbers('/virtualbot/lamp/temperature', temperature);
     }
     return { content: [{ type: 'text', text: 'delivered' }] };
   },
@@ -130,7 +133,31 @@ server.registerTool(
     await ctx.wsServer.waitForConnection(typeof timeoutMs === 'number' ? timeoutMs : 10000);
     return { content: [{ type: 'text', text: 'connected' }] };
   },
+
 );
+
+
+// Arm grab toggle (on/off)
+server.registerTool(
+  'set_arm_grab',
+  { description: 'Arm grab on/off.', inputSchema: { state: z.union([z.literal('off'), z.literal('on')]).optional(), on: z.boolean().optional() } },
+  async (args: Record<string, unknown>) => {
+    const parsed = z
+      .object({ state: z.union([z.literal('off'), z.literal('on')]).optional(), on: z.boolean().optional() })
+      .parse(args);
+    const desiredOn = parsed.state ? parsed.state === 'on' : Boolean(parsed.on);
+    const flag = desiredOn ? 1 : 0;
+    await ctx.oscSender.sendNumbers('/virtualbot/arm/grab', flag);
+    return { content: [{ type: 'text', text: 'delivered' }] };
+  },
+);
+
+// Get last arm contact metadata and grabbed flag
+server.registerTool('get_arm_contact', { description: 'Last arm contact.' }, (_args: unknown) => {
+  const c = ctx.armContact.get();
+  if (!c) throw new Error('arm contact unavailable');
+  return { content: [{ type: 'text', text: JSON.stringify(c) }] };
+});
 
 server.registerTool(
   'move_relative',

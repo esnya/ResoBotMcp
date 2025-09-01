@@ -59,6 +59,7 @@ export const SetLampInput = {
   state: LampStateSchema.optional(),
   on: z.boolean().optional(),
   brightness: z.number().min(0).max(1).optional(),
+  temperature: z.number().optional(),
 } as const;
 
 export const ToolContracts = {
@@ -73,6 +74,8 @@ export const ToolContracts = {
   get_pose: { inputSchema: {} as const },
   set_arm_position: { inputSchema: SetArmPositionInput },
   set_lamp: { inputSchema: SetLampInput },
+  set_arm_grab: { inputSchema: { state: LampStateSchema.optional(), on: z.boolean().optional() } as const },
+  get_arm_contact: { inputSchema: {} as const },
 } as const;
 
 export type ToolName = keyof typeof ToolContracts;

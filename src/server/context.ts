@@ -2,6 +2,7 @@ import { OscSender, loadOscTargetFromEnv } from '../gateway/OscSender.js';
 import { WebSocketRpcServer, wsConfigFromEnv } from '../gateway/WebSocketRpc.js';
 import { OscReceiver, oscIngressConfigFromEnv } from '../gateway/OscReceiver.js';
 import { PoseTracker } from '../gateway/PoseTracker.js';
+import { ArmContactTracker } from '../gateway/ArmContactTracker.js';
 import { scoped } from '../logging.js';
 
 export type AppContext = {
@@ -9,6 +10,7 @@ export type AppContext = {
   wsServer: WebSocketRpcServer;
   poseTracker: PoseTracker;
   oscIngress: OscReceiver;
+  armContact: ArmContactTracker;
 };
 
 export function createAppContext(): AppContext {
@@ -19,6 +21,7 @@ export function createAppContext(): AppContext {
   const oscSender = new OscSender(oscTarget);
   const wsServer = new WebSocketRpcServer(wsConfigFromEnv());
   const poseTracker = new PoseTracker();
+  const armContact = new ArmContactTracker();
   const oscIngress = new OscReceiver(oscIngressConfigFromEnv());
 
   // Wire OSC ingress to pose tracker
@@ -36,11 +39,26 @@ export function createAppContext(): AppContext {
     );
   });
 
+  // Arm contact: metadata (string) and grabbed flag (number/bool)
+  oscIngress.register('/virtualbot/arm/contact/meta', (args) => {
+    const [meta] = args as unknown[];
+    if (typeof meta === 'string') {
+      armContact.updateMeta(meta);
+      scoped('osc:arm-contact').debug({ meta }, 'arm meta updated');
+    }
+  });
+  oscIngress.register('/virtualbot/arm/contact/grabbed', (args) => {
+    const [flag] = args as unknown[];
+    const grabbed = typeof flag === 'number' ? Number(flag) !== 0 : Boolean(flag);
+    armContact.updateGrabbed(grabbed);
+    scoped('osc:arm-contact').debug({ grabbed }, 'arm grabbed updated');
+  });
+
   // Register minimal WS RPC methods (server side)
   wsServer.register('ping', (args) => {
     const text = typeof args['text'] === 'string' ? args['text'] : '';
     return { text };
   });
 
-  return { oscSender, wsServer, poseTracker, oscIngress };
+  return { oscSender, wsServer, poseTracker, oscIngress, armContact };
 }
