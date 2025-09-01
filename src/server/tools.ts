@@ -8,6 +8,8 @@ import {
   PingInput,
   SetTextInput,
   WaitResoniteInput,
+  SetArmPositionInput,
+  SetLampInput,
 } from '../tools/contracts.js';
 import { TurnRelativeInput } from '../tools/contracts.js';
 import { SetAccentHue, SetAccentHueInput } from '../usecases/SetAccentHue.js';
@@ -25,6 +27,18 @@ server.registerTool(
   async (args: { text: string }) => {
     const { text } = z.object(SetTextInput).parse(args);
     await ctx.oscSender.sendText(text, '/virtualbot/text');
+    return { content: [{ type: 'text', text: 'delivered' }] };
+  },
+);
+
+// Set arm XYZ position
+server.registerTool(
+  'set_arm_position',
+  { description: 'Set arm XYZ.', inputSchema: SetArmPositionInput },
+  async (args: { x: number; y: number; z: number }) => {
+    const parsed = z.object(SetArmPositionInput).parse(args);
+    const { x, y, z: zPos } = parsed;
+    await ctx.oscSender.sendNumbers('/virtualbot/arm/position', x, y, zPos);
     return { content: [{ type: 'text', text: 'delivered' }] };
   },
 );
@@ -84,6 +98,23 @@ server.registerTool(
   { description: 'Set accent hue.', inputSchema: SetAccentHueInput },
   async (args: { hue: number }) => {
     await setAccentHue.execute(args);
+    return { content: [{ type: 'text', text: 'delivered' }] };
+  },
+);
+
+// Lamp control: state (off/on) mapped to int (0/2), optional brightness [0..1]
+server.registerTool(
+  'set_lamp',
+  { description: 'Lamp on/off and brightness.', inputSchema: SetLampInput },
+  async (args: Record<string, unknown>) => {
+    const { state, on, brightness } = z.object(SetLampInput).parse(args);
+    const resolvedState: 'off' | 'on' = state ?? (on ? 'on' : 'off');
+    const stateInt = resolvedState === 'on' ? 2 : 0;
+    await ctx.oscSender.sendNumbers('/virtualbot/lamp/state', stateInt);
+    if (typeof brightness === 'number') {
+      const b = Math.min(1, Math.max(0, brightness));
+      await ctx.oscSender.sendNumbers('/virtualbot/lamp/brightness', b);
+    }
     return { content: [{ type: 'text', text: 'delivered' }] };
   },
 );

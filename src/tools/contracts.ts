@@ -46,6 +46,21 @@ export const WaitResoniteInput = {
   timeoutMs: z.number().int().min(1).optional(),
 } as const;
 
+// Arm and Lamp controls (OSC)
+export const SetArmPositionInput = {
+  x: z.number(),
+  y: z.number(),
+  z: z.number(),
+} as const;
+
+export const LampStateSchema = z.union([z.literal('off'), z.literal('on')]);
+export const SetLampInput = {
+  // Either provide `state` or `on`. If both present, `state` wins.
+  state: LampStateSchema.optional(),
+  on: z.boolean().optional(),
+  brightness: z.number().min(0).max(1).optional(),
+} as const;
+
 export const ToolContracts = {
   set_text: { inputSchema: SetTextInput },
   set_expression: { inputSchema: SetExpressionInput },
@@ -56,6 +71,8 @@ export const ToolContracts = {
   move_relative: { inputSchema: MoveRelativeInput },
   turn_relative: { inputSchema: TurnRelativeInput },
   get_pose: { inputSchema: {} as const },
+  set_arm_position: { inputSchema: SetArmPositionInput },
+  set_lamp: { inputSchema: SetLampInput },
 } as const;
 
 export type ToolName = keyof typeof ToolContracts;
