@@ -33,6 +33,9 @@ Resonite side: receive a string at the configured OSC address and route to your 
 - `set_text`
   - Args: `text` (string, required)
   - Returns: literal text "delivered" (UDP best-effort)
+- `capture_camera`
+  - Args: `fov` (number), `size` (power-of-two, 1..4096)
+  - Returns: captured local filename only (no data). The filename is sufficient; `local:///` prefix is fixed and implied. No MCP resource exposure.
 
 Other tools exposed: `set_expression`, `set_accent_hue`, `move_relative`, `turn_relative`, `get_pose`, `ping`.
 

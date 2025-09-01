@@ -2,8 +2,8 @@ Design note: Minimal local resource whitelist (pre‑release)
 
 Purpose
 
-- Expose locally captured assets (currently from capture_camera) as MCP resources without leaking machine_id or real paths.
-- Keep it simple: local only, no TTL, no hashing, no MIME checks yet.
+- Future: expose locally captured assets (from `capture_camera`) as MCP resources without leaking `machine_id` or real paths.
+- Current: do not expose MCP resources; return only the sanitized filename from the tool. Keep it simple: local only, no TTL, no hashing, no MIME checks yet.
 
 Scope & Boundaries
 
@@ -24,9 +24,9 @@ Whitelist Model (minimal)
 
 MCP Interface
 
-- A ResourceTemplate is registered at `local:///{filename}`.
-  - list: enumerates current whitelist as Resources (name=filename, uri=`local:///filename`).
-  - read: validates URI ∈ whitelist, reads from `${RESONITE_DATA_PATH}/Assets/<filename>` and returns `{ blob: base64 }`.
+- Deferred (not registered). The design keeps a `ResourceTemplate` for `local:///{filename}` ready to be wired when needed.
+  - list: would enumerate whitelist as Resources (name=filename, uri=`local:///filename`).
+  - read: would validate URI ∈ whitelist, read from `${RESONITE_DATA_PATH}/Assets/<filename>` and return `{ blob: base64 }`.
 
 Error Model (minimal)
 
@@ -39,7 +39,8 @@ Configuration
 
 Migration
 
-- None yet (not wired). When integrated, tool `capture_camera` will return URIs instead of inline base64.
+- Current behavior: `capture_camera` returns the sanitized filename only (no data). `local:///` prefix is fixed and implied.
+- Future migration (if enabling MCP resources): return `local:///filename` and document consumers to read via MCP resources.
 
 Test Strategy
 

@@ -49,4 +49,3 @@ export const ToolContracts = {
 } as const;
 
 export type ToolName = keyof typeof ToolContracts;
-

@@ -8,7 +8,6 @@ describe('loadOscTargetFromEnv', () => {
     process.env = { ...OLD_ENV };
     delete process.env['RESONITE_OSC_HOST'];
     delete process.env['RESONITE_OSC_PORT'];
-    delete process.env['RESONITE_OSC_ADDRESS'];
   });
 
   afterEach(() => {
@@ -25,11 +24,10 @@ describe('loadOscTargetFromEnv', () => {
   it('parses valid env values', () => {
     process.env['RESONITE_OSC_HOST'] = '192.168.0.10';
     process.env['RESONITE_OSC_PORT'] = '7000';
-    process.env['RESONITE_OSC_ADDRESS'] = '/bot/say';
     const t = loadOscTargetFromEnv();
     expect(t.host).toBe('192.168.0.10');
     expect(t.port).toBe(7000);
-    expect(t.address).toBe('/bot/say');
+    expect(t.address).toBe('/resobot/text');
   });
 
   it('throws on invalid port', () => {

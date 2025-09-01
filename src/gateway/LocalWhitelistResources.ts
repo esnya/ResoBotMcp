@@ -71,3 +71,7 @@ export class LocalWhitelistResources {
 export function sanitizeToPublicLocalUri(url: string): string {
   return sanitizeCaptureUrl(url).uri;
 }
+
+export function filenameFromLocalUrl(url: string): string {
+  return sanitizeCaptureUrl(url).filename;
+}

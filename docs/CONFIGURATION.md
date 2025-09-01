@@ -14,5 +14,6 @@ Single source of truth: Defaults live in code. Do not duplicate default values i
 - Local asset path: `src/usecases/ReadLocalAsset.ts:37`
 
 Notes
+
 - OSC text address is fixed in code to `/resobot/text`.
 - Avoid comments in config; let names and types carry intent. Use doc comments only when unavoidable.
