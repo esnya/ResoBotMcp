@@ -21,10 +21,7 @@ const setAccentHue = new SetAccentHue(ctx.oscSender);
 // Register tools at import-time (declarative style)
 server.registerTool(
   'set_text',
-  {
-    description: 'Send a generic UTF-8 text payload over OSC to Resonite.',
-    inputSchema: SetTextInput,
-  },
+  { description: 'Send text via OSC.', inputSchema: SetTextInput },
   async (args: { text: string }) => {
     const { text } = z.object(SetTextInput).parse(args);
     await ctx.sendTextViaOsc.execute({ text });
@@ -34,10 +31,7 @@ server.registerTool(
 
 server.registerTool(
   'set_expression',
-  {
-    description: 'Set expression by preset identifiers (eyesId/mouthId).',
-    inputSchema: SetExpressionInput,
-  },
+  { description: 'Set facial expression.', inputSchema: SetExpressionInput },
   async (args: { eyesId?: string | undefined; mouthId?: string | undefined }) => {
     await setExpression.execute(args);
     return { content: [{ type: 'text', text: 'delivered' }] };
@@ -46,10 +40,7 @@ server.registerTool(
 
 server.registerTool(
   'ping',
-  {
-    description: 'Roundtrip a string via Resonite WS ping and echo it back.',
-    inputSchema: PingInput,
-  },
+  { description: 'WS echo roundtrip.', inputSchema: PingInput },
   async (args: { text: string }) => {
     const res = await ctx.wsServer.request('ping', { text: args.text ?? '' });
     const parsed = z.object({ text: z.string() }).parse(res);
@@ -59,29 +50,33 @@ server.registerTool(
 
 server.registerTool(
   'capture_camera',
-  {
-    description: 'Capture via Resonite with {fov,size}; return local filename (no data).',
-    inputSchema: CaptureCameraInput,
-  },
+  { description: 'Capture; returns filename.', inputSchema: CaptureCameraInput },
   async (args: { fov: number; size: number }) => {
     const { fov, size } = z.object(CaptureCameraInput).parse(args);
     log.info({ name: 'capture_camera', fov, size }, 'request');
-    const result = await ctx.wsServer.request('camera_capture', {
-      fov: String(fov),
-      size: String(size),
-    });
-    const { url } = z.object({ url: z.string().startsWith('local://') }).parse(result);
-    const filename = filenameFromLocalUrl(url);
-    return { content: [{ type: 'text', text: filename }] };
+    try {
+      const { record, raw } = await ctx.wsServer.requestWithRaw('camera_capture', {
+        fov: String(fov),
+        size: String(size),
+      });
+      const parsed = z.object({ url: z.string().startsWith('local://') }).safeParse(record);
+      if (!parsed.success) {
+        const msg = 'invalid ws response: missing url';
+        return { isError: true, content: [{ type: 'text', text: `${msg}; raw=${raw}` }] };
+      }
+      const filename = filenameFromLocalUrl(parsed.data.url);
+      return { content: [{ type: 'text', text: filename }] };
+    } catch (e) {
+      const err = e as Error & { raw?: string };
+      const raw = typeof (err as { raw?: unknown }).raw === 'string' ? `; raw=${(err as { raw?: string }).raw}` : '';
+      return { isError: true, content: [{ type: 'text', text: `ws error: ${err.message}${raw}` }] };
+    }
   },
 );
 
 server.registerTool(
   'set_accent_hue',
-  {
-    description: 'Set accent hue in degrees (0..360). Normalized to 0..1 for OSC.',
-    inputSchema: SetAccentHueInput,
-  },
+  { description: 'Set accent hue.', inputSchema: SetAccentHueInput },
   async (args: { hue: number }) => {
     await setAccentHue.execute(args);
     return { content: [{ type: 'text', text: 'delivered' }] };
@@ -104,8 +99,7 @@ server.registerTool(
 server.registerTool(
   'move_relative',
   {
-    description:
-      'Move relative by direction enum and distance. Sends XYZ vector via WS RPC; pose echo remains via OSC.',
+    description: 'Move by direction+distance.',
     inputSchema: { direction: DirectionSchema, distance: z.number() },
   },
   async (args: {
@@ -143,10 +137,7 @@ server.registerTool(
 
 server.registerTool(
   'turn_relative',
-  {
-    description: 'Turn (yaw) relative in degrees. Uses WS RPC; pose still echoed via OSC.',
-    inputSchema: TurnRelativeInput,
-  },
+  { description: 'Turn by degrees.', inputSchema: TurnRelativeInput },
   async (args: { degrees: number }) => {
     const parsed = z.object(TurnRelativeInput).parse(args);
     await ctx.wsServer.request('turn_relative', { degrees: String(parsed.degrees) });
@@ -154,12 +145,8 @@ server.registerTool(
   },
 );
 
-server.registerTool(
-  'get_pose',
-  { description: 'Get current global position (x,y,z) and orientation (heading, pitch).' },
-  (_args: unknown) => {
-    const pose = ctx.poseTracker.get();
-    if (!pose) throw new Error('pose unavailable');
-    return { content: [{ type: 'text', text: JSON.stringify(pose) }] };
-  },
-);
+server.registerTool('get_pose', { description: 'Get current pose.' }, (_args: unknown) => {
+  const pose = ctx.poseTracker.get();
+  if (!pose) throw new Error('pose unavailable');
+  return { content: [{ type: 'text', text: JSON.stringify(pose) }] };
+});

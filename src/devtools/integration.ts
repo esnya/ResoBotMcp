@@ -289,3 +289,4 @@ run()
     console.error(err instanceof Error ? err.message : String(err));
     process.exit(1);
   });
+import 'dotenv/config';

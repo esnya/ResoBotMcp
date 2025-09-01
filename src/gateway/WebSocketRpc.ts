@@ -12,6 +12,17 @@ import { scoped } from '../logging.js';
 
 const log = scoped('ws-rpc');
 
+export class RpcError extends Error {
+  constructor(
+    message: string,
+    public readonly raw: string,
+    public readonly id: string,
+  ) {
+    super(message);
+    this.name = 'RpcError';
+  }
+}
+
 export const WebSocketConfigSchema = z.object({
   port: z.number().int().min(1).max(65535).default(8765),
 });
@@ -29,7 +40,7 @@ export class WebSocketRpcServer {
   private readonly pending = new Map<
     string,
     {
-      resolve: (r: Record<string, string>) => void;
+      resolve: (r: { record: Record<string, string>; raw: string }) => void;
       reject: (e: Error) => void;
       timer?: ReturnType<typeof setTimeout>;
     }
@@ -112,8 +123,8 @@ export class WebSocketRpcServer {
           if (!entry) return;
           this.pending.delete(res.id);
           if (entry.timer) clearTimeout(entry.timer);
-          if (res.status === 'ok') entry.resolve(res.result);
-          else entry.reject(new Error(res.message));
+          if (res.status === 'ok') entry.resolve({ record: res.result, raw: text });
+          else entry.reject(new RpcError(res.message, text, res.id));
         } catch {
           log.warn('invalid response ignored');
         }
@@ -160,6 +171,15 @@ export class WebSocketRpcServer {
     args: Record<string, string>,
     options?: { timeoutMs?: number; connectTimeoutMs?: number },
   ): Promise<Record<string, string>> {
+    const { record } = await this.requestWithRaw(method, args, options);
+    return record;
+  }
+
+  async requestWithRaw(
+    method: string,
+    args: Record<string, string>,
+    options?: { timeoutMs?: number; connectTimeoutMs?: number },
+  ): Promise<{ record: Record<string, string>; raw: string }> {
     let ws = this.clients.values().next().value as WebSocket | undefined;
     if (!ws) {
       const connectTimeout = options?.connectTimeoutMs ?? 0;
@@ -179,11 +199,11 @@ export class WebSocketRpcServer {
       if (!ws) throw new Error('no Resonite client connected');
     }
     const id = Math.random().toString(36).slice(2, 10);
-    const record: FlatRecord = { type: 'request', id, method };
-    for (const [k, v] of Object.entries(args)) record[k] = v;
-    const text = FlatKV.encode(record);
+    const frame: FlatRecord = { type: 'request', id, method };
+    for (const [k, v] of Object.entries(args)) frame[k] = v;
+    const text = FlatKV.encode(frame);
     const timeoutMs = options?.timeoutMs ?? 10000;
-    return await new Promise<Record<string, string>>((resolve, reject) => {
+    return await new Promise<{ record: Record<string, string>; raw: string }>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
         reject(new Error('request timeout'));

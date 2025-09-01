@@ -23,3 +23,4 @@ server.connect(transport).catch((err: unknown) => {
   log.error({ err }, 'Failed to start MCP stdio server');
   process.exit(1);
 });
+import 'dotenv/config';
