@@ -18,7 +18,7 @@ describe('loadOscTargetFromEnv', () => {
     const t = loadOscTargetFromEnv();
     expect(t.host).toBe('127.0.0.1');
     expect(t.port).toBe(9000);
-    expect(t.address).toBe('/resobot/text');
+    expect(t.address).toBe('/virtualbot/text');
   });
 
   it('parses valid env values', () => {
@@ -27,7 +27,7 @@ describe('loadOscTargetFromEnv', () => {
     const t = loadOscTargetFromEnv();
     expect(t.host).toBe('192.168.0.10');
     expect(t.port).toBe(7000);
-    expect(t.address).toBe('/resobot/text');
+    expect(t.address).toBe('/virtualbot/text');
   });
 
   it('throws on invalid port', () => {

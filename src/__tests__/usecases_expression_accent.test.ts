@@ -10,6 +10,10 @@ class FakeOscSender {
     this.texts.push({ address: address ?? '/default', text });
     return Promise.resolve();
   }
+  sendTextAt(address: string, text: string): Promise<void> {
+    this.texts.push({ address, text });
+    return Promise.resolve();
+  }
   sendNumbers(address: string, ...values: number[]): Promise<void> {
     this.numbers.push({ address, values });
     return Promise.resolve();
