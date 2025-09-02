@@ -9,7 +9,7 @@ function getFreePort(start = 19000, end = 20000): number {
   return port;
 }
 
-describe('WebSocket RPC error paths for arm_*', () => {
+describe('WS RPC - Arm Actions (error paths)', () => {
   describe('with ws server and a client', () => {
     let port: number;
     let server: WebSocketRpcServer;
@@ -82,67 +82,8 @@ describe('WebSocket RPC error paths for arm_*', () => {
       ).rejects.toThrow('request timeout');
     });
 
-    it('ignores wrong id response and then times out', async () => {
-      client.on('message', (raw) => {
-        const text = typeof raw === 'string' ? raw : raw.toString();
-        const rec = FlatKV.decode(text);
-        if (rec['type'] === 'request') {
-          const wrongId = 'mismatch123';
-          const frame = FlatKV.encode({ type: 'response', id: wrongId, status: 'ok' });
-          client.send(frame);
-        }
-      });
-
-      await expect(
-        server.request('arm_grab', {}, { timeoutMs: 150, connectTimeoutMs: 150 }),
-      ).rejects.toThrow('request timeout');
-    });
-
-    it('rejects with "server closed" when server is closed mid-flight', async () => {
-      // When request arrives, immediately close the server before any response
-      client.on('message', () => {
-        server.close();
-      });
-      await expect(
-        server.request('arm_grab', {}, { timeoutMs: 1000, connectTimeoutMs: 200 }),
-      ).rejects.toThrow('server closed');
-    });
-
-    it('times out when connection drops before responding', async () => {
-      // Drop connection as soon as we receive the request
-      client.on('message', () => {
-        try {
-          client.terminate();
-        } catch (e) {
-          void e;
-        }
-      });
-      await expect(
-        server.request('arm_release', {}, { timeoutMs: 150, connectTimeoutMs: 150 }),
-      ).rejects.toThrow('request timeout');
-    });
+    // arm-specific tests only in this suite
   });
 
-  describe('with ws server only (no client)', () => {
-    let port: number;
-    let server: WebSocketRpcServer;
-
-    beforeEach(() => {
-      port = getFreePort();
-      server = new WebSocketRpcServer({ port });
-    });
-    afterEach(() => {
-      try {
-        server.close();
-      } catch (e) {
-        void e;
-      }
-    });
-
-    it('errors immediately when no client is connected (connect timeout)', async () => {
-      await expect(
-        server.request('arm_grab', {}, { timeoutMs: 500, connectTimeoutMs: 50 }),
-      ).rejects.toThrow('no Resonite client connected');
-    });
-  });
+  // No-client transport errors are covered in ws_rpc_transport_error.test.ts
 });
