@@ -31,7 +31,7 @@ Normative spec for message exchange between Resonite (client) and this server us
 
 - For every `req`, the server MUST send one `res` with the same `id`.
 - Requests MAY be processed concurrently; responses MAY arrive out-of-order.
-- Clients SHOULD time out after a configured interval (e.g., 5000ms) and handle timeouts locally.
+- Clients SHOULD time out after a configured interval (e.g., 15000ms) and handle timeouts locally.
 
 ## Methods
 

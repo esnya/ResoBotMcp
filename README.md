@@ -42,7 +42,7 @@ Other tools exposed: `set_expression`, `set_accent_hue`, `move_relative`, `turn_
 - `wait_resonite`
   - Args: `timeoutMs` (optional)
   - Returns: `connected` when a Resonite WS client is connected to this server
-  - Default timeout: ~30s
+  - Default timeout: ~15s
 
 Source of truth for tool inputs lives in code:
 

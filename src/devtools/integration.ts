@@ -170,7 +170,7 @@ async function run(): Promise<number> {
 
   // Ensure WS connection from Resonite is ready (wait tool)
   try {
-    await callToolText(client, 'wait_resonite', { timeoutMs: 10000 });
+    await callToolText(client, 'wait_resonite', { timeoutMs: 15000 });
     add({ name: 'wait_resonite', ok: true });
   } catch (e) {
     add({ name: 'wait_resonite', ok: false, detail: (e as Error).message });

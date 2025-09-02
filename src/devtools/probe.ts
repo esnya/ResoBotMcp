@@ -186,7 +186,7 @@ function parseArgs(argv: string[]): Command {
 async function main(): Promise<void> {
   const cmd = parseArgs(process.argv.slice(2));
   if (cmd.kind === 'help') {
-    const u = `Usage: probe <command> [options]\n\nCommands:\n  ws:call --method <name> [--arg k=v] [--timeoutMs 5000] [--connectTimeoutMs 0] [--raw] [--flat]\n  ws:ping --text <str>                 (alias: ws-ping)\n  osc:send --address /path [--text s | --floats f1,f2,... | --ints i1,i2,...] (alias: osc-send)\n  osc:listen [--host 0.0.0.0] [--port 9010] [--filter /addr] [--durationMs N] (alias: osc-listen)\n  osc:set-expression [--eyesId id] [--mouthId id] (alias: set-expression)\n  osc:set-accent-hue --hue <0..360>    (alias: set-accent-hue)\n  osc:pose --x --y --z --heading --pitch (alias: pose)\n  osc:expression-seq [--delayMs 300]   (alias: expressions)\n`;
+    const u = `Usage: probe <command> [options]\n\nCommands:\n  ws:call --method <name> [--arg k=v] [--timeoutMs 15000] [--connectTimeoutMs 15000] [--raw] [--flat]\n  ws:ping --text <str>                 (alias: ws-ping)\n  osc:send --address /path [--text s | --floats f1,f2,... | --ints i1,i2,...] (alias: osc-send)\n  osc:listen [--host 0.0.0.0] [--port 9010] [--filter /addr] [--durationMs N] (alias: osc-listen)\n  osc:set-expression [--eyesId id] [--mouthId id] (alias: set-expression)\n  osc:set-accent-hue --hue <0..360>    (alias: set-accent-hue)\n  osc:pose --x --y --z --heading --pitch (alias: pose)\n  osc:expression-seq [--delayMs 300]   (alias: expressions)\n`;
     console.log(u);
     return;
   }
@@ -197,20 +197,20 @@ async function main(): Promise<void> {
       const { method, args, timeoutMs, connectTimeoutMs, raw, flat } = cmd;
       if (raw) {
         const res = await server.requestWithRaw(method, args, {
-          timeoutMs: timeoutMs ?? 10000,
-          connectTimeoutMs: connectTimeoutMs ?? 30000,
+          timeoutMs: timeoutMs ?? 15000,
+          connectTimeoutMs: connectTimeoutMs ?? 15000,
         });
         console.log(res.raw);
       } else if (flat) {
         const res = await server.requestWithRaw(method, args, {
-          timeoutMs: timeoutMs ?? 10000,
-          connectTimeoutMs: connectTimeoutMs ?? 30000,
+          timeoutMs: timeoutMs ?? 15000,
+          connectTimeoutMs: connectTimeoutMs ?? 15000,
         });
         console.log(JSON.stringify(res.flat));
       } else {
         const res = await server.request(method, args, {
-          timeoutMs: timeoutMs ?? 10000,
-          connectTimeoutMs: connectTimeoutMs ?? 30000,
+          timeoutMs: timeoutMs ?? 15000,
+          connectTimeoutMs: connectTimeoutMs ?? 15000,
         });
         console.log(JSON.stringify(res));
       }
@@ -223,7 +223,7 @@ async function main(): Promise<void> {
     const cfg = wsConfigFromEnv();
     const server = new WebSocketRpcServer(cfg);
     try {
-      const res = await server.request('ping', { text: cmd.text }, { timeoutMs: 5000 });
+      const res = await server.request('ping', { text: cmd.text }, { timeoutMs: 15000 });
       const parsed = z.object({ text: z.string() }).parse(res);
       console.log(parsed.text);
     } finally {
