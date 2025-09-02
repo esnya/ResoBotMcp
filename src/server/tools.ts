@@ -137,6 +137,8 @@ server.registerTool('reset', { description: 'Restore standard state.' }, async (
   // Lamp: off, and set temperature to warm (~2700K). Accent color is preserved elsewhere.
   await ctx.oscSender.sendIntegers(ADDR.lamp.state, 0);
   await ctx.oscSender.sendNumbers(ADDR.lamp.temperature, 2700);
+  // Brightness to standard level (full)
+  await ctx.oscSender.sendNumbers(ADDR.lamp.brightness, 1);
   // Arm position to origin
   await ctx.oscSender.sendNumbers(ADDR.arm.position, 0, 0, 0);
   return { content: [{ type: 'text', text: 'reset' }] } as const;
