@@ -198,19 +198,19 @@ async function main(): Promise<void> {
       if (raw) {
         const res = await server.requestWithRaw(method, args, {
           timeoutMs: timeoutMs ?? 10000,
-          connectTimeoutMs: connectTimeoutMs ?? 4000,
+          connectTimeoutMs: connectTimeoutMs ?? 30000,
         });
         console.log(res.raw);
       } else if (flat) {
         const res = await server.requestWithRaw(method, args, {
           timeoutMs: timeoutMs ?? 10000,
-          connectTimeoutMs: connectTimeoutMs ?? 4000,
+          connectTimeoutMs: connectTimeoutMs ?? 30000,
         });
         console.log(JSON.stringify(res.flat));
       } else {
         const res = await server.request(method, args, {
           timeoutMs: timeoutMs ?? 10000,
-          connectTimeoutMs: connectTimeoutMs ?? 4000,
+          connectTimeoutMs: connectTimeoutMs ?? 30000,
         });
         console.log(JSON.stringify(res));
       }

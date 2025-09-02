@@ -153,7 +153,7 @@ server.registerTool(
   async (args: { timeoutMs?: number | undefined }) => {
     const { timeoutMs } = z.object(WaitResoniteInput).parse(args);
     // Default assumes Resonite retries ~3s; add margin
-    await ctx.wsServer.waitForConnection(typeof timeoutMs === 'number' ? timeoutMs : 4000);
+    await ctx.wsServer.waitForConnection(typeof timeoutMs === 'number' ? timeoutMs : 30000);
     return { content: [{ type: 'text', text: 'connected' }] };
   },
 );

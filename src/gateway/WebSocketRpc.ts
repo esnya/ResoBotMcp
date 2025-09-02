@@ -100,7 +100,7 @@ export class WebSocketRpcServer {
   }
 
   // Wait for at least one client connection, with timeout
-  async waitForConnection(timeoutMs: number = 4000): Promise<void> {
+  async waitForConnection(timeoutMs: number = 30000): Promise<void> {
     const existing = this.clients.values().next().value as WebSocket | undefined;
     if (existing) return;
     await new Promise<void>((resolve, reject) => {
@@ -262,7 +262,7 @@ export class WebSocketRpcServer {
     let ws = this.clients.values().next().value as WebSocket | undefined;
     if (!ws) {
       // By default, wait ~one client retry cycle (≈3s) plus margin for connection
-      const connectTimeout = options?.connectTimeoutMs ?? 4000;
+      const connectTimeout = options?.connectTimeoutMs ?? 30000;
       if (connectTimeout > 0) {
         await new Promise<void>((resolve, reject) => {
           const timer = setTimeout(
