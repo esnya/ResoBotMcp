@@ -117,7 +117,8 @@ server.registerTool(
     const { state, on, brightness, temperature } = z.object(SetLampInput).parse(args);
     const resolvedState: 'off' | 'on' = state ?? (on ? 'on' : 'off');
     const stateInt = resolvedState === 'on' ? 2 : 0;
-    await ctx.oscSender.sendNumbers(ADDR.lamp.state, stateInt);
+    // Lamp state is expected as integer (0/2) on Resonite side
+    await ctx.oscSender.sendIntegers(ADDR.lamp.state, stateInt);
     if (typeof brightness === 'number') {
       const b = Math.min(1, Math.max(0, brightness));
       await ctx.oscSender.sendNumbers(ADDR.lamp.brightness, b);

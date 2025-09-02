@@ -21,7 +21,7 @@ type Command =
   // Back-compat convenience
   | { kind: 'ws:ping'; text: string }
   // Generic OSC send/listen
-  | { kind: 'osc:send'; address: string; text?: string; numbers?: number[] }
+  | { kind: 'osc:send'; address: string; text?: string; numbers?: number[]; ints?: boolean }
   | { kind: 'osc:listen'; host: string; port: number; filter?: string; durationMs?: number }
   // Back-compat convenience
   | { kind: 'osc:set-expression'; eyesId?: string; mouthId?: string }
@@ -115,14 +115,17 @@ function parseArgs(argv: string[]): Command {
           throw new Error('--numbers must be CSV of numbers');
       }
       const text = kv['text'];
+      const ints = kv['ints'] === 'true' || kv['ints'] === '1';
       if (!text && (!numbers || numbers.length === 0))
         throw new Error('one of --text or --numbers is required');
       const out: { kind: 'osc:send'; address: string } & Partial<{
         text: string;
         numbers: number[];
+        ints: boolean;
       }> = { kind: 'osc:send', address };
       if (typeof text === 'string') out.text = text;
       if (numbers && numbers.length > 0) out.numbers = numbers;
+      if (ints) out.ints = true;
       return out;
     }
     case 'osc:listen':
@@ -262,7 +265,8 @@ async function main(): Promise<void> {
         return;
       }
       if (cmd.numbers && cmd.numbers.length > 0) {
-        await oscSender.sendNumbers(cmd.address, ...cmd.numbers);
+        if (cmd.ints) await oscSender.sendIntegers(cmd.address, ...cmd.numbers);
+        else await oscSender.sendNumbers(cmd.address, ...cmd.numbers);
         console.log('delivered');
         return;
       }

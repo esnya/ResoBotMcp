@@ -77,7 +77,7 @@ export class OscSender {
     }
     await new Promise<void>((resolve, reject) => {
       try {
-        // Force float typing for numeric values to satisfy receivers expecting float args
+        // Default: send as float values
         const args = values.map((v) => ({ type: 'float', value: Number(v) }));
         this.client.send(address, ...args, (err: Error | null) => {
           if (err) {
@@ -90,6 +90,29 @@ export class OscSender {
         });
       } catch (e) {
         log.error({ err: e, address, values }, 'osc send numbers threw');
+        reject(e as Error);
+      }
+    });
+  }
+
+  async sendIntegers(address: string, ...values: number[]): Promise<void> {
+    if (!address.startsWith('/')) {
+      throw new Error(`OSC address must start with '/': ${address}`);
+    }
+    await new Promise<void>((resolve, reject) => {
+      try {
+        const args = values.map((v) => ({ type: 'integer', value: Math.trunc(Number(v)) }));
+        this.client.send(address, ...args, (err: Error | null) => {
+          if (err) {
+            log.error({ err, address, values }, 'osc send integers failed');
+            reject(err);
+            return;
+          }
+          log.debug({ address, values }, 'osc send integers ok');
+          resolve();
+        });
+      } catch (e) {
+        log.error({ err: e, address, values }, 'osc send integers threw');
         reject(e as Error);
       }
     });
