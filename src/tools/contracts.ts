@@ -74,6 +74,7 @@ export const ToolContracts = {
   get_pose: { inputSchema: {} as const },
   set_arm_position: { inputSchema: SetArmPositionInput },
   set_lamp: { inputSchema: SetLampInput },
+  reset: { inputSchema: {} as const },
   arm_grab: { inputSchema: {} as const },
   arm_release: { inputSchema: {} as const },
   get_arm_contact: { inputSchema: {} as const },

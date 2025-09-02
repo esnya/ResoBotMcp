@@ -130,6 +130,15 @@ server.registerTool(
   },
 );
 
+// Restore standard state (keep color as-is internally)
+server.registerTool('reset', { description: 'Restore standard state.' }, async (_args: unknown) => {
+  // Neutral expression
+  await setExpression.execute({ eyesId: 'neutral', mouthId: 'line' });
+  // Lamp off (do not touch temperature/color)
+  await ctx.oscSender.sendIntegers(ADDR.lamp.state, 0);
+  return { content: [{ type: 'text', text: 'reset' }] } as const;
+});
+
 server.registerTool(
   'wait_resonite',
   {
