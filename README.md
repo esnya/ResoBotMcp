@@ -34,7 +34,7 @@ Resonite side: receive a string at the configured OSC address and route to your 
   - Args: `text` (string, required)
   - Returns: literal text "delivered" (UDP best-effort)
 - `capture_camera`
-  - Args: `fov` (number), `size` (power-of-two, 1..4096)
+  - Args: `fov` (number, default 60), `size` (1..4096; auto-mapped to nearest power-of-two, default 512)
   - Returns: image as base64 (URL-encoded). Decode and use as needed.
 
 Other tools exposed: `set_expression`, `set_accent_hue`, `move_relative`, `turn_relative`, `get_pose`, `ping`, `arm_grab`, `arm_release`, `set_arm_position`, `get_arm_contact`, `set_lamp`.

@@ -69,13 +69,30 @@ server.registerTool(
 server.registerTool(
   'capture_camera',
   { description: 'Capture; returns image (base64).', inputSchema: CaptureCameraInput },
-  async (args: { fov: number; size: number }) => {
-    const { fov, size } = z.object(CaptureCameraInput).parse(args);
-    log.info({ name: 'capture_camera', fov, size }, 'request');
+  async (args: { fov?: unknown; size?: unknown }) => {
+    // Normalize minor argument issues: defaults and nearest power-of-two size
+    const defaultFov = 60;
+    const defaultSize = 512;
+    const rawFov = Number((args as { fov?: unknown }).fov);
+    const rawSize = Number((args as { size?: unknown }).size);
+    const fov = Number.isFinite(rawFov) ? rawFov : defaultFov;
+    let size: number;
+    if (Number.isFinite(rawSize)) {
+      const clamped = Math.max(1, Math.min(4096, Math.round(rawSize)));
+      const lower = 2 ** Math.floor(Math.log2(clamped));
+      const upper = 2 ** Math.ceil(Math.log2(clamped));
+      size = clamped === lower ? lower : clamped - lower <= upper - clamped ? lower : upper;
+      size = Math.max(1, Math.min(4096, size));
+    } else {
+      size = defaultSize;
+    }
+    // Validate final model (strict contract) before calling WS RPC
+    const { fov: okFov, size: okSize } = z.object(CaptureCameraInput).parse({ fov, size });
+    log.info({ name: 'capture_camera', fov: okFov, size: okSize, normalized: true }, 'request');
     try {
       const { record, raw } = await ctx.wsServer.requestWithRaw('camera_capture', {
-        fov: String(fov),
-        size: String(size),
+        fov: String(okFov),
+        size: String(okSize),
       });
       const parsed = z.object({ url: z.string().startsWith('local://') }).safeParse(record);
       if (!parsed.success) {
@@ -87,7 +104,7 @@ server.registerTool(
       const b64 = await reader.readBase64FromLocalUrl(parsed.data.url);
       return {
         content: [{ type: 'image', data: b64, mimeType: 'image/png' }],
-        structuredContent: { url: parsed.data.url },
+        structuredContent: { url: parsed.data.url, fov: okFov, size: okSize },
       } as const;
     } catch (e) {
       const err = e as Error & { raw?: string };
