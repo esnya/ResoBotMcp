@@ -134,6 +134,9 @@ export function parseResponse(record: FlatRecord): RpcResponseOk | RpcResponseEr
   if (!id || id.length > 64) {
     throw new Error('invalid id');
   }
+  if (status == null) {
+    throw new Error('missing status');
+  }
   if (status === 'ok') {
     const result: Record<string, string> = {};
     const reserved = new Set(['type', 'id', 'status', 'message', 'method']);
@@ -147,7 +150,7 @@ export function parseResponse(record: FlatRecord): RpcResponseOk | RpcResponseEr
     const message = record['message'] ?? 'error';
     return { id, status: 'error', message };
   }
-  throw new Error('invalid response');
+  throw new Error(`invalid status: ${String(status)}`);
 }
 
 export function parseRequest(record: FlatRecord): RpcRequest {

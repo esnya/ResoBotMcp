@@ -11,7 +11,6 @@ import {
   SetArmPositionInput,
   SetLampInput,
   TurnRelativeInput,
-  SetArmGrabInput,
 } from '../tools/contracts.js';
 import { SetAccentHue, SetAccentHueInput } from '../usecases/SetAccentHue.js';
 import { SetExpression, SetExpressionInput } from '../usecases/SetExpression.js';
@@ -60,7 +59,10 @@ server.registerTool(
   async (args: { text: string }) => {
     const res = await ctx.wsServer.request('ping', { text: args.text ?? '' });
     const parsed = z.object({ text: z.string() }).parse(res);
-    return { content: [{ type: 'text', text: parsed.text }] };
+    return {
+      content: [{ type: 'text', text: parsed.text }],
+      structuredContent: { text: parsed.text },
+    } as const;
   },
 );
 
@@ -83,7 +85,10 @@ server.registerTool(
       const assetCfg = loadResoniteDataPathFromEnv();
       const reader = new ReadLocalAsset(assetCfg);
       const b64 = await reader.readBase64FromLocalUrl(parsed.data.url);
-      return { content: [{ type: 'image', data: b64, mimeType: 'image/png' }] } as const;
+      return {
+        content: [{ type: 'image', data: b64, mimeType: 'image/png' }],
+        structuredContent: { url: parsed.data.url },
+      } as const;
     } catch (e) {
       const err = e as Error & { raw?: string };
       const raw =
@@ -132,21 +137,32 @@ server.registerTool(
   },
   async (args: { timeoutMs?: number | undefined }) => {
     const { timeoutMs } = z.object(WaitResoniteInput).parse(args);
-    await ctx.wsServer.waitForConnection(typeof timeoutMs === 'number' ? timeoutMs : 10000);
+    // Default assumes Resonite retries ~3s; add margin
+    await ctx.wsServer.waitForConnection(typeof timeoutMs === 'number' ? timeoutMs : 4000);
     return { content: [{ type: 'text', text: 'connected' }] };
   },
 );
 
-// Arm grab toggle (on/off)
+// Arm instant actions (RPC): grab and release
+server.registerTool('arm_grab', { description: 'Arm grab (instant).' }, async (_args: unknown) => {
+  const rec = await ctx.wsServer.request('arm_grab', {});
+  const parsed = z.object({ grabbing: z.string().min(1) }).parse(rec);
+  return {
+    content: [{ type: 'text', text: `ok: ${parsed.grabbing}` }],
+    structuredContent: { grabbing: parsed.grabbing },
+  } as const;
+});
+
 server.registerTool(
-  'set_arm_grab',
-  { description: 'Arm grab on/off.', inputSchema: SetArmGrabInput },
-  async (args: Record<string, unknown>) => {
-    const parsed = z.object(SetArmGrabInput).parse(args);
-    const desiredOn = parsed.state ? parsed.state === 'on' : Boolean(parsed.on);
-    const flag = desiredOn ? 1 : 0;
-    await ctx.oscSender.sendNumbers(ADDR.arm.grab, flag);
-    return { content: [{ type: 'text', text: 'delivered' }] };
+  'arm_release',
+  { description: 'Arm release (instant).' },
+  async (_args: unknown) => {
+    const rec = await ctx.wsServer.request('arm_release', {});
+    const parsed = z.object({ released_count: z.coerce.number().int().min(0) }).parse(rec);
+    return {
+      content: [{ type: 'text', text: `released: ${parsed.released_count}` }],
+      structuredContent: { released_count: parsed.released_count },
+    } as const;
   },
 );
 
@@ -191,8 +207,12 @@ server.registerTool(
         break;
     }
     const vector = encodeArray(vec);
-    await ctx.wsServer.request('move_relative', { vector });
-    return { content: [{ type: 'text', text: JSON.stringify({ vector: vec }) }] };
+    const rec = await ctx.wsServer.request('move_relative', { vector });
+    const out = z.object({ actual_moved_meters: z.coerce.number() }).parse(rec);
+    return {
+      content: [{ type: 'text', text: `moved: ${out.actual_moved_meters}` }],
+      structuredContent: { actual_moved_meters: out.actual_moved_meters },
+    } as const;
   },
 );
 
@@ -201,8 +221,10 @@ server.registerTool(
   { description: 'Turn by degrees.', inputSchema: TurnRelativeInput },
   async (args: { degrees: number }) => {
     const parsed = z.object(TurnRelativeInput).parse(args);
-    await ctx.wsServer.request('turn_relative', { degrees: String(parsed.degrees) });
-    return { content: [{ type: 'text', text: JSON.stringify({ degrees: parsed.degrees }) }] };
+    const rec = await ctx.wsServer.request('turn_relative', { degrees: String(parsed.degrees) });
+    // No fields expected in response; enforce empty payload
+    z.object({}).strict().parse(rec);
+    return { content: [{ type: 'text', text: 'ok' }] } as const;
   },
 );
 

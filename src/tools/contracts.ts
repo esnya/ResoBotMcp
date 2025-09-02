@@ -62,11 +62,6 @@ export const SetLampInput = {
   temperature: z.number().optional(),
 } as const;
 
-export const SetArmGrabInput = {
-  state: LampStateSchema.optional(),
-  on: z.boolean().optional(),
-} as const;
-
 export const ToolContracts = {
   set_text: { inputSchema: SetTextInput },
   set_expression: { inputSchema: SetExpressionInput },
@@ -79,7 +74,8 @@ export const ToolContracts = {
   get_pose: { inputSchema: {} as const },
   set_arm_position: { inputSchema: SetArmPositionInput },
   set_lamp: { inputSchema: SetLampInput },
-  set_arm_grab: { inputSchema: SetArmGrabInput },
+  arm_grab: { inputSchema: {} as const },
+  arm_release: { inputSchema: {} as const },
   get_arm_contact: { inputSchema: {} as const },
 } as const;
 

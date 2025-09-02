@@ -24,7 +24,7 @@ Minimal MCP (Model Context Protocol) stdio server that connects AI tools to a Re
 - `RESONITE_OSC_PORT` (default `9000`)
 - `RESONITE_DATA_PATH` (required for `capture_camera`): Resonite data root that contains the `Assets/` directory where captured files are written.
 
-OSC address for text egress is fixed to `/resobot/text` in code.
+OSC address for text egress is fixed to `/virtualbot/text` in code.
 
 Resonite side: receive a string at the configured OSC address and route to your UI or speech component.
 
@@ -37,11 +37,12 @@ Resonite side: receive a string at the configured OSC address and route to your 
   - Args: `fov` (number), `size` (power-of-two, 1..4096)
   - Returns: image as base64 (URL-encoded). Decode and use as needed.
 
-Other tools exposed: `set_expression`, `set_accent_hue`, `move_relative`, `turn_relative`, `get_pose`, `ping`.
+Other tools exposed: `set_expression`, `set_accent_hue`, `move_relative`, `turn_relative`, `get_pose`, `ping`, `arm_grab`, `arm_release`, `set_arm_position`, `get_arm_contact`, `set_lamp`.
 
 - `wait_resonite`
   - Args: `timeoutMs` (optional)
   - Returns: `connected` when a Resonite WS client is connected to this server
+  - Default timeout: ~4s (assumes Resonite retries every ~3s)
 
 Source of truth for tool inputs lives in code:
 
@@ -80,14 +81,25 @@ MIT © esnya
 These manual checks require a running Resonite world wired to the OSC/WS ports.
 They are not part of normal tests.
 
-- Set expression via presets:
-  - `npm run probe -- set-expression --eyesId winkL --mouthId smile_big`
-- Set accent hue (0..360, normalized to 0..1 internally):
-  - `npm run probe -- set-accent-hue --hue 200`
-- Seed pose into the server (helps `move_relative`/`turn_relative` in your scene):
-  - `npm run probe -- pose --x 0 --y 0 --z 0 --heading 90 --pitch 0`
-- WS ping roundtrip (Resonite WS client must connect to the server):
-  - `npm run probe -- ws:ping --text hello`
-- Consolidated check (all tools, Resonite required):
-  - `npm run integration`
-  - Set `INTEGRATION_CAPTURE=1` to also test `capture_camera`
+Generic probe commands:
+
+- `ws:call`: call Resonite WS-RPC methods (Resonite must connect to our server)
+  - `npm run probe -- ws:call --method ping --arg text=hello`
+  - `npm run probe -- ws:call --method camera_capture --arg fov=60 --arg size=512 --raw`
+  - `npm run probe -- ws:call --method arm_grab`
+  - `npm run probe -- ws:call --method arm_release`
+- `osc:send`: send OSC to any address
+  - `npm run probe -- osc:send --address /virtualbot/text --text "hello"`
+  - `npm run probe -- osc:send --address /virtualbot/arm/position --numbers 0.2,0.0,0.8`
+- `osc:listen`: print incoming OSC
+  - `npm run probe -- osc:listen --host 0.0.0.0 --port 9010`
+  - `npm run probe -- osc:listen --filter /virtualbot/position --durationMs 5000`
+
+Convenience aliases retained:
+
+- `set-expression`, `set-accent-hue`, `pose`, `ws:ping`, `expressions`
+
+Consolidated check (all tools, Resonite required):
+
+- `npm run integration`
+- Set `INTEGRATION_CAPTURE=1` to also test `capture_camera`

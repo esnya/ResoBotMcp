@@ -57,6 +57,10 @@ See `docs/CONFIGURATION.md` for patterns and examples.
 - TypeScript: `strict`, `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`.
 - ESLint (flat) type‑aware + Prettier. Run `npm run check` before commit.
 - Tests: Vitest (+ coverage). Keep fast and deterministic.
+- Test policy:
+  - Unit tests must be hermetic: no real Resonite client/process required; no external network dependencies.
+  - Do not include tests that require a live Resonite WS client in CI. Use devtools for manual verification instead.
+  - For WS RPC, use in‑process stubs (e.g., `ws` client) to exercise error paths and success parsing.
 
 ## VS Code Policy
 
@@ -89,6 +93,15 @@ See `docs/CONFIGURATION.md` for patterns and examples.
 - `fix`: Prettier write then ESLint --fix (auto‑fix first).
 - `check`: Prettier check, ESLint, TS type‑check.
 - `test`, `test:watch`: run tests.
+
+### Manual Integration/Probe (real client)
+
+- Use `probe` and `integration` only when a real Resonite client/world is available. Not run in CI.
+- Examples:
+  - `npm run probe -- ws:call --method arm_grab`
+  - `npm run probe -- ws:call --method arm_release`
+  - `npm run probe -- ws:call --method ping --arg text=hello`
+  - `npm run integration` (optional end‑to‑end sweep; expects Resonite wiring if WS/OSC paths are exercised)
 
 ## Review
 

@@ -11,7 +11,6 @@ export const ADDR = {
   },
   arm: {
     position: '/virtualbot/arm/position',
-    grab: '/virtualbot/arm/grab',
     contact: {
       meta: '/virtualbot/arm/contact/meta',
       grabbed: '/virtualbot/arm/contact/grabbed',

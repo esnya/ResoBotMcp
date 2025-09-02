@@ -40,7 +40,7 @@ export class WebSocketRpcServer {
   private readonly pending = new Map<
     string,
     {
-      resolve: (r: { record: Record<string, string>; raw: string }) => void;
+      resolve: (r: { record: Record<string, string>; flat: FlatRecord; raw: string }) => void;
       reject: (e: Error) => void;
       timer?: ReturnType<typeof setTimeout>;
     }
@@ -57,11 +57,39 @@ export class WebSocketRpcServer {
   }
 
   close(): void {
-    this.wss.close();
+    try {
+      // Proactively terminate all clients to avoid keeping event loop alive
+      for (const ws of this.clients) {
+        try {
+          // terminate() closes the connection immediately
+          ws.terminate();
+        } catch {
+          // ignore
+        }
+      }
+      this.clients.clear();
+      // Clear any pending timers/promises
+      for (const [id, entry] of this.pending) {
+        try {
+          if (entry.timer) clearTimeout(entry.timer);
+          // Reject outstanding promises to unblock callers, if any
+          entry.reject(new Error('server closed'));
+        } catch {
+          // ignore
+        }
+        this.pending.delete(id);
+      }
+    } finally {
+      try {
+        this.wss.close();
+      } catch {
+        // ignore
+      }
+    }
   }
 
   // Wait for at least one client connection, with timeout
-  async waitForConnection(timeoutMs: number = 10000): Promise<void> {
+  async waitForConnection(timeoutMs: number = 4000): Promise<void> {
     const existing = this.clients.values().next().value as WebSocket | undefined;
     if (existing) return;
     await new Promise<void>((resolve, reject) => {
@@ -123,10 +151,18 @@ export class WebSocketRpcServer {
           if (!entry) return;
           this.pending.delete(res.id);
           if (entry.timer) clearTimeout(entry.timer);
-          if (res.status === 'ok') entry.resolve({ record: res.result, raw: text });
+          if (res.status === 'ok') entry.resolve({ record: res.result, flat: record, raw: text });
           else entry.reject(new RpcError(res.message, text, res.id));
-        } catch {
-          log.warn('invalid response ignored');
+        } catch (e) {
+          const reason = e instanceof Error ? e.message : 'parse error';
+          const preview = {
+            type: record['type'],
+            id: record['id'],
+            status: record['status'],
+            message: record['message'],
+          } as const;
+          const keys = Object.keys(record).slice(0, 16);
+          log.warn({ reason, preview, keys, raw: text }, 'invalid response ignored');
         }
         return;
       }
@@ -179,10 +215,11 @@ export class WebSocketRpcServer {
     method: string,
     args: Record<string, string>,
     options?: { timeoutMs?: number; connectTimeoutMs?: number },
-  ): Promise<{ record: Record<string, string>; raw: string }> {
+  ): Promise<{ record: Record<string, string>; flat: FlatRecord; raw: string }> {
     let ws = this.clients.values().next().value as WebSocket | undefined;
     if (!ws) {
-      const connectTimeout = options?.connectTimeoutMs ?? 0;
+      // By default, wait ~one client retry cycle (≈3s) plus margin for connection
+      const connectTimeout = options?.connectTimeoutMs ?? 4000;
       if (connectTimeout > 0) {
         await new Promise<void>((resolve, reject) => {
           const timer = setTimeout(
@@ -203,15 +240,17 @@ export class WebSocketRpcServer {
     for (const [k, v] of Object.entries(args)) frame[k] = v;
     const text = FlatKV.encode(frame);
     const timeoutMs = options?.timeoutMs ?? 10000;
-    return await new Promise<{ record: Record<string, string>; raw: string }>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.pending.delete(id);
-        reject(new Error('request timeout'));
-      }, timeoutMs);
-      this.pending.set(id, { resolve, reject, timer });
-      log.debug({ id, method }, 'sending request');
-      ws.send(text);
-    });
+    return await new Promise<{ record: Record<string, string>; flat: FlatRecord; raw: string }>(
+      (resolve, reject) => {
+        const timer = setTimeout(() => {
+          this.pending.delete(id);
+          reject(new Error('request timeout'));
+        }, timeoutMs);
+        this.pending.set(id, { resolve, reject, timer });
+        log.debug({ id, method }, 'sending request');
+        ws.send(text);
+      },
+    );
   }
 }
 
