@@ -90,7 +90,8 @@ Generic probe commands:
   - `npm run probe -- ws:call --method arm_release`
 - `osc:send`: send OSC to any address
   - `npm run probe -- osc:send --address /virtualbot/text --text "hello"`
-  - `npm run probe -- osc:send --address /virtualbot/arm/position --numbers 0.2,0.0,0.8`
+  - `npm run probe -- osc:send --address /virtualbot/arm/position --floats 0.2,0.0,0.8`
+  - `npm run probe -- osc:send --address /virtualbot/lamp/state --ints 2`
 - `osc:listen`: print incoming OSC
   - `npm run probe -- osc:listen --host 0.0.0.0 --port 9010`
   - `npm run probe -- osc:listen --filter /virtualbot/position --durationMs 5000`

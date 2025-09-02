@@ -21,7 +21,7 @@ type Command =
   // Back-compat convenience
   | { kind: 'ws:ping'; text: string }
   // Generic OSC send/listen
-  | { kind: 'osc:send'; address: string; text?: string; numbers?: number[]; ints?: boolean }
+  | { kind: 'osc:send'; address: string; text?: string; floats?: number[]; ints?: number[] }
   | { kind: 'osc:listen'; host: string; port: number; filter?: string; durationMs?: number }
   // Back-compat convenience
   | { kind: 'osc:set-expression'; eyesId?: string; mouthId?: string }
@@ -103,29 +103,32 @@ function parseArgs(argv: string[]): Command {
     case 'osc-send': {
       const address = kv['address'];
       if (!address || !address.startsWith('/')) throw new Error("--address '/path' required");
-      let numbers: number[] | undefined;
-      if (has('numbers')) {
-        const raw = kv['numbers'];
-        numbers = (raw ?? '')
+      const parseCsv = (raw: string | undefined, label: string): number[] => {
+        const vals = (raw ?? '')
           .split(',')
           .map((s) => s.trim())
           .filter((s) => s.length > 0)
           .map((s) => Number(s));
-        if (!numbers.every((n) => Number.isFinite(n)))
-          throw new Error('--numbers must be CSV of numbers');
-      }
+        if (vals.length === 0 || !vals.every((n) => Number.isFinite(n)))
+          throw new Error(`--${label} must be CSV of numbers`);
+        return vals;
+      };
       const text = kv['text'];
-      const ints = kv['ints'] === 'true' || kv['ints'] === '1';
-      if (!text && (!numbers || numbers.length === 0))
-        throw new Error('one of --text or --numbers is required');
+      const floats = has('floats') ? parseCsv(kv['floats'], 'floats') : undefined;
+      const integers = has('ints') ? parseCsv(kv['ints'], 'ints') : undefined;
+      if (typeof text === 'string' && (floats || integers))
+        throw new Error('use either --text or one of --floats/--ints');
+      if (floats && integers) throw new Error('use exactly one of --floats or --ints (not both)');
+      if (!text && !floats && !integers)
+        throw new Error('one of --text, --floats, or --ints is required');
       const out: { kind: 'osc:send'; address: string } & Partial<{
         text: string;
-        numbers: number[];
-        ints: boolean;
+        floats: number[];
+        ints: number[];
       }> = { kind: 'osc:send', address };
       if (typeof text === 'string') out.text = text;
-      if (numbers && numbers.length > 0) out.numbers = numbers;
-      if (ints) out.ints = true;
+      if (floats) out.floats = floats;
+      if (integers) out.ints = integers;
       return out;
     }
     case 'osc:listen':
@@ -183,7 +186,7 @@ function parseArgs(argv: string[]): Command {
 async function main(): Promise<void> {
   const cmd = parseArgs(process.argv.slice(2));
   if (cmd.kind === 'help') {
-    const u = `Usage: probe <command> [options]\n\nCommands:\n  ws:call --method <name> [--arg k=v] [--timeoutMs 5000] [--connectTimeoutMs 0] [--raw] [--flat]\n  ws:ping --text <str>                 (alias: ws-ping)\n  osc:send --address /path [--text s | --numbers n1,n2,...] (alias: osc-send)\n  osc:listen [--host 0.0.0.0] [--port 9010] [--filter /addr] [--durationMs N] (alias: osc-listen)\n  osc:set-expression [--eyesId id] [--mouthId id] (alias: set-expression)\n  osc:set-accent-hue --hue <0..360>    (alias: set-accent-hue)\n  osc:pose --x --y --z --heading --pitch (alias: pose)\n  osc:expression-seq [--delayMs 300]   (alias: expressions)\n`;
+    const u = `Usage: probe <command> [options]\n\nCommands:\n  ws:call --method <name> [--arg k=v] [--timeoutMs 5000] [--connectTimeoutMs 0] [--raw] [--flat]\n  ws:ping --text <str>                 (alias: ws-ping)\n  osc:send --address /path [--text s | --floats f1,f2,... | --ints i1,i2,...] (alias: osc-send)\n  osc:listen [--host 0.0.0.0] [--port 9010] [--filter /addr] [--durationMs N] (alias: osc-listen)\n  osc:set-expression [--eyesId id] [--mouthId id] (alias: set-expression)\n  osc:set-accent-hue --hue <0..360>    (alias: set-accent-hue)\n  osc:pose --x --y --z --heading --pitch (alias: pose)\n  osc:expression-seq [--delayMs 300]   (alias: expressions)\n`;
     console.log(u);
     return;
   }
@@ -264,9 +267,13 @@ async function main(): Promise<void> {
         console.log('delivered');
         return;
       }
-      if (cmd.numbers && cmd.numbers.length > 0) {
-        if (cmd.ints) await oscSender.sendIntegers(cmd.address, ...cmd.numbers);
-        else await oscSender.sendNumbers(cmd.address, ...cmd.numbers);
+      if (cmd.floats && cmd.floats.length > 0) {
+        await oscSender.sendNumbers(cmd.address, ...cmd.floats);
+        console.log('delivered');
+        return;
+      }
+      if (cmd.ints && cmd.ints.length > 0) {
+        await oscSender.sendIntegers(cmd.address, ...cmd.ints);
         console.log('delivered');
         return;
       }

@@ -134,8 +134,9 @@ server.registerTool(
 server.registerTool('reset', { description: 'Restore standard state.' }, async (_args: unknown) => {
   // Neutral expression
   await setExpression.execute({ eyesId: 'neutral', mouthId: 'line' });
-  // Lamp off (do not touch temperature/color)
+  // Lamp: off, and set temperature to warm (~2700K). Accent color is preserved elsewhere.
   await ctx.oscSender.sendIntegers(ADDR.lamp.state, 0);
+  await ctx.oscSender.sendNumbers(ADDR.lamp.temperature, 2700);
   return { content: [{ type: 'text', text: 'reset' }] } as const;
 });
 
