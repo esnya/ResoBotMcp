@@ -206,7 +206,7 @@ server.registerTool('get_arm_contact', { description: 'Last arm contact.' }, (_a
   const c = ctx.armContact.get();
   if (!c || !c.meta || String(c.meta).trim().length === 0) {
     const msg =
-      'No arm contact detected. Move the arm or approach the target until contact is made.';
+      'No arm contact detected. Try moving the body (use move_relative) or adjusting the arm (use set_arm_position), then approach the target until contact is made.';
     return { content: [{ type: 'text', text: msg }] };
   }
   return { content: [{ type: 'text', text: JSON.stringify(c) }] };
