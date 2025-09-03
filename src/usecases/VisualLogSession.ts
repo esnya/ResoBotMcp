@@ -73,14 +73,16 @@ function renderHtml(title: string, events: AnyEvent[]): string {
     body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;margin:0;padding:0}
     header{padding:12px 16px;border-bottom:1px solid #9994;display:flex;justify-content:space-between;align-items:center}
     main{padding:12px;display:grid;grid-template-columns:1fr 380px;gap:12px;align-items:start;min-height:calc(100vh - 56px)}
+    #map,#timeline{min-width:0}
     #map{height:100%;}
-    #timeline{overflow:auto; max-height:calc(100vh - 56px);}
+    #timeline{overflow-y:auto; overflow-x:hidden; max-height:calc(100vh - 56px);}
+    #timelineBody{overflow-x:hidden}
     ul{list-style:none;padding:0}
-    li{padding:6px 8px;border-bottom:1px solid #9993}
+    li{padding:6px 8px;border-bottom:1px solid #9993;overflow-wrap:anywhere;word-break:break-word}
     canvas{max-width:100%;height:auto;border:1px solid #9994;border-radius:8px;background:linear-gradient(90deg,#0000 24%,#9992 25% 26%,#0000 27% 74%,#9992 75% 76%,#0000 77%),linear-gradient(#0000 24%,#9992 25% 26%,#0000 27% 74%,#9992 75% 76%,#0000 77%)}
-    .meta{opacity:.7;font-size:.9em}
+    .meta{opacity:.7;font-size:.9em;overflow-wrap:anywhere;word-break:break-word;white-space:normal}
     .col h3{margin:6px 0 8px 0}
-    img.tool-thumb{max-width:256px;max-height:256px;border-radius:6px;border:1px solid #9994}
+    img.tool-thumb{max-width:256px;max-height:256px;border-radius:6px;border:1px solid #9994;display:block}
   </style>
 </head>
 <body>
