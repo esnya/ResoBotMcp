@@ -43,8 +43,22 @@ function timestampBase(d: Date): string {
   return `${yyyy}${MM}${dd}-${HH}${mm}${ss}`;
 }
 
+export type ToolEvent = {
+  type: 'tool';
+  t: number;
+  name: string;
+  args: Record<string, unknown>;
+  ok: boolean;
+  text?: string;
+  image?: { dataUrl: string; mimeType: string } | undefined;
+  structured?: unknown;
+  error?: string;
+};
+
+export type AnyEvent = VisualEvent | ToolEvent;
+
 /** Minimal, dependency-free HTML template generator */
-function renderHtml(title: string, events: VisualEvent[]): string {
+function renderHtml(title: string, events: AnyEvent[]): string {
   const json = JSON.stringify(events);
   return `<!doctype html>
 <html lang="en">
@@ -56,16 +70,13 @@ function renderHtml(title: string, events: VisualEvent[]): string {
     :root{color-scheme:light dark}
     body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;margin:0;padding:0}
     header{padding:12px 16px;border-bottom:1px solid #9994;display:flex;justify-content:space-between;align-items:center}
-    .tabs{display:flex;gap:8px}
-    .tab{cursor:pointer;padding:6px 10px;border-radius:6px;border:1px solid #9994}
-    .tab.active{background:#9992}
-    main{padding:12px}
-    #map{display:none}
-    #timeline{display:none}
+    main{padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
     ul{list-style:none;padding:0}
     li{padding:6px 8px;border-bottom:1px solid #9993}
     canvas{max-width:100%;height:auto;border:1px solid #9994;border-radius:8px;background:linear-gradient(90deg,#0000 24%,#9992 25% 26%,#0000 27% 74%,#9992 75% 76%,#0000 77%),linear-gradient(#0000 24%,#9992 25% 26%,#0000 27% 74%,#9992 75% 76%,#0000 77%)}
     .meta{opacity:.7;font-size:.9em}
+    .col h3{margin:6px 0 8px 0}
+    img.tool-thumb{max-width:256px;max-height:256px;border-radius:6px;border:1px solid #9994}
   </style>
 </head>
 <body>
@@ -74,14 +85,10 @@ function renderHtml(title: string, events: VisualEvent[]): string {
       <strong>${escapeHtml(title)}</strong>
       <div class="meta">Resonite coords: +Z forward, +X right, +Y up</div>
     </div>
-    <nav class="tabs">
-      <button class="tab" id="tab-timeline">Time</button>
-      <button class="tab" id="tab-map">Position</button>
-    </nav>
   </header>
   <main>
-    <section id="timeline"></section>
-    <section id="map">
+    <section class="col" id="timeline"><h3>Timeline</h3><div id="timelineBody"></div></section>
+    <section class="col" id="map"><h3>Position</h3>
       <canvas id="mapCanvas" width="960" height="540"></canvas>
       <div class="meta">Top-down view (X right, Z forward). Scale auto-fit.</div>
     </section>
@@ -90,21 +97,7 @@ function renderHtml(title: string, events: VisualEvent[]): string {
   <script>
     const data = JSON.parse(document.getElementById('visual-log-data').textContent || '[]');
     const events = Array.isArray(data) ? data : [];
-
-    const timelineEl = document.getElementById('timeline');
-    const mapEl = document.getElementById('map');
-    const tabTimeline = document.getElementById('tab-timeline');
-    const tabMap = document.getElementById('tab-map');
-
-    function show(which){
-      const tActive = which === 'timeline';
-      tabTimeline.classList.toggle('active', tActive);
-      tabMap.classList.toggle('active', !tActive);
-      timelineEl.style.display = tActive ? 'block' : 'none';
-      mapEl.style.display = !tActive ? 'block' : 'none';
-    }
-    tabTimeline.onclick = ()=>show('timeline');
-    tabMap.onclick = ()=>show('map');
+    const timelineBody = document.getElementById('timelineBody');
 
     // Timeline (newest first)
     function renderTimeline(){
@@ -117,6 +110,16 @@ function renderHtml(title: string, events: VisualEvent[]): string {
           li.innerHTML = '<div><strong>set_text</strong></div>'
             + '<div>' + escapeHtmlInline(ev.text) + '</div>'
             + '<div class="meta">' + time + '</div>';
+        } else if(ev.type === 'tool'){
+          const head = '<div><strong>tool</strong>: ' + escapeHtmlInline(ev.name) + '</div>';
+          let body = '';
+          if(ev.text){ body += '<div>' + escapeHtmlInline(ev.text) + '</div>'; }
+          if(ev.image && ev.image.dataUrl){
+            body += '<div><img class="tool-thumb" data-original="' + ev.image.dataUrl + '" alt="image" /></div>';
+          }
+          if(ev.structured){ body += '<div class="meta">' + escapeHtmlInline(JSON.stringify(ev.structured)) + '</div>'; }
+          const status = ev.ok ? 'ok' : ('error: ' + escapeHtmlInline(ev.error || ''));
+          li.innerHTML = head + body + '<div class="meta">' + status + ' | ' + time + '</div>';
         } else if(ev.type === 'pose'){
           li.innerHTML = '<div><strong>pose</strong></div>'
             + '<div class="meta">'
@@ -125,7 +128,8 @@ function renderHtml(title: string, events: VisualEvent[]): string {
         }
         ul.appendChild(li);
       }
-      timelineEl.replaceChildren(ul);
+      timelineBody.replaceChildren(ul);
+      downscaleImages();
     }
 
     // Map (top-down X-Z, with simple auto scale and offset)
@@ -166,13 +170,39 @@ function renderHtml(title: string, events: VisualEvent[]): string {
 
       // axes legend
       ctx.fillStyle = '#999'; ctx.font = '12px system-ui';
-      ctx.fillText('+X →', canvas.width - 60, canvas.height - 10);
-      ctx.save(); ctx.translate(10, 50); ctx.rotate(-Math.PI/2); ctx.fillText('+Z →', 0, 0); ctx.restore();
+      ctx.fillText('X ->', canvas.width - 60, canvas.height - 10);
+      ctx.save(); ctx.translate(10, 50); ctx.rotate(-Math.PI/2); ctx.fillText('Z ->', 0, 0); ctx.restore();
     }
 
     function fmt(n){ return (Math.round(n*100)/100).toFixed(2); }
     function escapeHtmlInline(s){ return (s||'').replace(/[&<>]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;"})[c]); }
-    function init(){ renderTimeline(); renderMap(); show('timeline'); }
+    async function downscaleDataUrl(dataUrl, maxDim=256, outType='image/jpeg', q=0.7){
+      return new Promise((resolve)=>{
+        const img = new Image();
+        img.onload = ()=>{
+          const scale = Math.min(1, maxDim/Math.max(img.width, img.height));
+          const w = Math.max(1, Math.round(img.width*scale));
+          const h = Math.max(1, Math.round(img.height*scale));
+          const c = document.createElement('canvas'); c.width = w; c.height = h;
+          const cx = c.getContext('2d'); if(!cx){ resolve(dataUrl); return; }
+          cx.imageSmoothingQuality = 'high';
+          cx.drawImage(img, 0, 0, w, h);
+          try{ resolve(c.toDataURL(outType, q)); } catch { resolve(dataUrl); }
+        };
+        img.onerror = ()=> resolve(dataUrl);
+        img.src = dataUrl;
+      });
+    }
+    async function downscaleImages(){
+      const imgs = document.querySelectorAll('img.tool-thumb[data-original]');
+      for(const img of imgs){
+        const orig = img.getAttribute('data-original'); if(!orig) continue;
+        const small = await downscaleDataUrl(orig, 256, 'image/jpeg', 0.7);
+        img.setAttribute('src', small);
+        img.removeAttribute('data-original');
+      }
+    }
+    function init(){ renderTimeline(); renderMap(); }
     init();
   </script>
 </body>
@@ -185,7 +215,7 @@ function escapeHtml(s: string): string {
 
 export class VisualLogSession {
   private cfg: VisualLogConfig;
-  private events: VisualEvent[] = [];
+  private events: AnyEvent[] = [];
   private filePath: string | undefined;
   private writeTimer: ReturnType<typeof setTimeout> | undefined;
   private pendingText: { t: number; text: string } | undefined;
@@ -234,6 +264,27 @@ export class VisualLogSession {
       this.pendingText = { t: ts, text: text }; // replace with latest text
     }
     this.scheduleTextFinalize();
+  }
+
+  recordTool(event: Omit<ToolEvent, 'type' | 't'> & { t?: number }): void {
+    if (this.closed) return;
+    const ts = typeof event.t === 'number' ? event.t : now();
+    const ev: ToolEvent = {
+      type: 'tool',
+      t: ts,
+      name: event.name,
+      args: event.args,
+      ok: event.ok,
+      // optional fields added below
+    } as unknown as ToolEvent;
+    if (typeof event.text === 'string') (ev as unknown as { text?: string }).text = event.text;
+    if (event.image)
+      (ev as unknown as { image?: { dataUrl: string; mimeType: string } }).image = event.image;
+    if ('structured' in event && event.structured !== undefined)
+      (ev as unknown as { structured?: unknown }).structured = event.structured;
+    if (typeof event.error === 'string') (ev as unknown as { error?: string }).error = event.error;
+    this.events.push(ev);
+    this.scheduleFlush();
   }
 
   async close(): Promise<void> {
