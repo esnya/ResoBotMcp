@@ -6,12 +6,16 @@ import './server/tools.js';
 
 const log = scoped('main');
 
-process.on('exit', () => ctx.oscSender.close());
+process.on('exit', () => {
+  ctx.oscSender.close();
+  void ctx.visualLog.close();
+});
 process.on('SIGINT', () => {
   try {
     ctx.oscSender.close();
     ctx.oscIngress.close();
     ctx.wsServer.close();
+    void ctx.visualLog.close();
   } finally {
     process.exit(0);
   }

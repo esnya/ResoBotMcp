@@ -18,6 +18,11 @@ export const AppConfigSchema = z.object({
   }),
   oscIngress: OscIngressConfigSchema,
   assets: ReadLocalAssetConfigSchema,
+  visualLog: z.object({
+    dir: z.string().min(1).default('logs'),
+    flushMs: z.coerce.number().int().min(50).max(60_000).default(1000),
+    textCoalesceMs: z.coerce.number().int().min(50).max(10_000).default(500),
+  }),
 });
 export type AppConfig = z.infer<typeof AppConfigSchema>;
 
@@ -40,6 +45,15 @@ export function loadAppConfigFromEnv(): AppConfig {
     },
     assets: {
       resoniteDataPath: process.env['RESONITE_DATA_PATH'] ?? '',
+    },
+    visualLog: {
+      dir: process.env['VISUAL_LOG_DIR'],
+      flushMs: process.env['VISUAL_LOG_FLUSH_MS']
+        ? Number(process.env['VISUAL_LOG_FLUSH_MS'])
+        : undefined,
+      textCoalesceMs: process.env['VISUAL_LOG_TEXT_COALESCE_MS']
+        ? Number(process.env['VISUAL_LOG_TEXT_COALESCE_MS'])
+        : undefined,
     },
   } as const;
   return AppConfigSchema.parse(raw);

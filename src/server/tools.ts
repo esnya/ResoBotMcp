@@ -31,6 +31,8 @@ server.registerTool(
   async (args: { text: string }) => {
     const { text } = z.object(SetTextInput).parse(args);
     await ctx.oscSender.sendText(text);
+    // Visual timeline: coalesce while appending
+    ctx.visualLog.recordText(text);
     return { content: [{ type: 'text', text: 'delivered' }] };
   },
 );

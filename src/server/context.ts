@@ -6,6 +6,7 @@ import { ArmContactTracker } from '../gateway/ArmContactTracker.js';
 import { scoped } from '../logging.js';
 import { ADDR } from '../gateway/addresses.js';
 import { loadAppConfigFromEnv } from './config.js';
+import { VisualLogSession } from '../usecases/VisualLogSession.js';
 import {
   PosePositionArgsSchema,
   PoseRotationArgsSchema,
@@ -19,6 +20,7 @@ export type AppContext = {
   poseTracker: PoseTracker;
   oscIngress: OscReceiver;
   armContact: ArmContactTracker;
+  visualLog: VisualLogSession;
 };
 
 export function createAppContext(): AppContext {
@@ -33,16 +35,27 @@ export function createAppContext(): AppContext {
   const poseTracker = new PoseTracker();
   const armContact = new ArmContactTracker();
   const oscIngress = new OscReceiver(appConfig.oscIngress);
+  const visualLog = new VisualLogSession({
+    dir: appConfig.visualLog.dir,
+    flushMs: appConfig.visualLog.flushMs,
+    textCoalesceMs: appConfig.visualLog.textCoalesceMs,
+  });
+  // best-effort init (async; don't block startup)
+  void visualLog.init();
 
   oscIngress.register(ADDR.pose.position, (raw) => {
     const [x, y, z] = PosePositionArgsSchema.parse(raw);
     poseTracker.updatePosition(x, y, z);
     scoped('osc:position').debug({ x, y, z }, 'position updated');
+    const p = poseTracker.get();
+    if (p) visualLog.recordPose(p);
   });
   oscIngress.register(ADDR.pose.rotation, (raw) => {
     const [heading, pitch] = PoseRotationArgsSchema.parse(raw);
     poseTracker.updateRotation(heading, pitch);
     scoped('osc:rotation').debug({ heading, pitch }, 'rotation updated');
+    const p = poseTracker.get();
+    if (p) visualLog.recordPose(p);
   });
 
   oscIngress.register(ADDR.arm.contact.meta, (raw) => {
@@ -62,5 +75,5 @@ export function createAppContext(): AppContext {
     return { text };
   });
 
-  return { oscSender, wsServer, poseTracker, oscIngress, armContact };
+  return { oscSender, wsServer, poseTracker, oscIngress, armContact, visualLog };
 }
