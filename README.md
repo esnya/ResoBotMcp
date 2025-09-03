@@ -28,25 +28,16 @@ OSC address for text egress is fixed to `/virtualbot/text` in code.
 
 Resonite side: receive a string at the configured OSC address and route to your UI or speech component.
 
-## MCP Tools
+## MCP Tools (minimal)
 
-- `set_text`
-  - Args: `text` (string, required)
-  - Returns: literal text "delivered" (UDP best-effort)
-- `capture_camera`
-  - Args: `fov` (number, default 60), `size` (1..4096; auto-mapped to nearest power-of-two, default 512)
-  - Returns: image as base64 (URL-encoded). Decode and use as needed.
+- `set_text`: send text via OSC.
+- `capture_camera`: capture image; returns base64 + mimeType.
 
 Other tools exposed: `set_expression`, `set_accent_hue`, `move_relative`, `turn_relative`, `get_pose`, `ping`, `arm_grab`, `arm_release`, `set_arm_position`, `get_arm_contact`, `set_lamp`.
 
-- `wait_resonite`
-  - Args: `timeoutMs` (optional)
-  - Returns: `connected` when a Resonite WS client is connected to this server
-  - Default timeout: ~15s
+- `wait_resonite`: waits until a Resonite WS client connects.
 
-Source of truth for tool inputs lives in code:
-
-- `src/tools/contracts.ts:1`
+Contracts (source of truth) live in code: `src/tools/contracts.ts:1`
 
 ## VS Code
 

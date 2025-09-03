@@ -5,12 +5,7 @@ const US = String.fromCharCode(0x1f);
 const GS = String.fromCharCode(0x1d);
 const RS = String.fromCharCode(0x1e);
 
-const SEP_BYTES = new Set<number>([
-  '%'.charCodeAt(0),
-  0x1f,
-  0x1d,
-  0x1e,
-]);
+const SEP_BYTES = new Set<number>(['%'.charCodeAt(0), 0x1f, 0x1d, 0x1e]);
 
 function needsEncodingByte(byte: number): boolean {
   if (SEP_BYTES.has(byte)) return true;
