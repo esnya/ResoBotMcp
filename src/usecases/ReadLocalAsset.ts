@@ -1,11 +1,6 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { z } from 'zod';
-
-export const ReadLocalAssetConfigSchema = z.object({
-  resoniteDataPath: z.string().min(1, 'resoniteDataPath is required'),
-});
-export type ReadLocalAssetConfig = z.infer<typeof ReadLocalAssetConfigSchema>;
+import { ReadLocalAssetConfig, ReadLocalAssetConfigSchema } from '../types/config.js';
 
 export class ReadLocalAsset {
   constructor(private readonly config: ReadLocalAssetConfig) {}

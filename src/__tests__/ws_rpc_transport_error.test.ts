@@ -16,7 +16,7 @@ describe('WS RPC - Transport/Error Semantics', () => {
 
     beforeEach(async () => {
       port = getFreePort();
-      server = new WebSocketRpcServer({ port, keepAliveIntervalMs: 0, keepAliveTimeoutMs: 0 });
+      server = new WebSocketRpcServer({ port });
       client = new WebSocket(`ws://127.0.0.1:${port}`);
       await new Promise<void>((resolve, reject) => {
         client.once('open', () => resolve());
@@ -82,7 +82,7 @@ describe('WS RPC - Transport/Error Semantics', () => {
 
     beforeEach(() => {
       port = getFreePort();
-      server = new WebSocketRpcServer({ port, keepAliveIntervalMs: 0, keepAliveTimeoutMs: 0 });
+      server = new WebSocketRpcServer({ port });
     });
     afterEach(() => {
       try {

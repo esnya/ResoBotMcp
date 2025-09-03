@@ -26,7 +26,9 @@ export async function readExpressionPreset(kind: 'eyes' | 'mouth', id: string): 
       const buf = await readFile(p, 'utf8');
       return buf;
     } catch {
-      /* try next candidate */
+      // eslint-disable-next-line no-empty -- try next candidate; non-existent file is acceptable here
+      {
+      }
     }
   }
   const list = await listExpressionIds(kind);

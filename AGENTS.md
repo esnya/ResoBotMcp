@@ -30,6 +30,7 @@ Protocol specifics live in `docs/PROTOCOL_WS_RPC.md` (do not duplicate here).
 - No phantom APIs: Never call or depend on interfaces that are not designed and implemented. If needed, stub behind an interface or guard with a feature flag.
 - Single source of truth: Contracts live in docs/specs. Code, tests, and tools follow them exactly. Breaking changes require a Migration note.
 - Avoid hidden defaults: Keep integration defaults (e.g., endpoints) in one place and aligned across code and tools.
+- Explicit over defaults: Do not rely on omitted inputs or default parameters. Require explicit values at boundaries; if a default is unavoidable, make it opt‑in and centralized.
 - Non‑interfering observability: Logs and outputs must not collide with protocol transports. Return concise, human‑useful results from tools.
 - Readiness and timeouts: For external dependencies, wait with bounded timeouts and fail with actionable messages.
 
@@ -49,6 +50,7 @@ See `docs/CONFIGURATION.md` for patterns and examples.
 - No `any` in production code. Allow only in `*.d.ts` and tests.
 - Public APIs: explicit param/return types.
 - No unused vars; prefix `_` for intentionally unused params.
+- Empty `catch` blocks are forbidden. If suppression is truly necessary, disable the rule line‑by‑line with an ESLint directive including a short reason; do not leave comment‑only blocks.
 - Access env as `process.env['NAME']`.
 - JSON must be formatted (Prettier). No comments in JSON.
 

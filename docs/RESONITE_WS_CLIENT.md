@@ -35,3 +35,4 @@ This document describes what the Resonite side needs to implement to use the min
 - Keep messages small (≤ 4 KiB recommended).
 - Keys are ASCII; values are arbitrary Unicode text percent-encoded by the FlatKV rules.
 - Maintain a small table of pending `id -> continuation` if multiple concurrent requests are used.
+- Server does not enforce keep‑alive. Clients should manage their own timeouts and may use WebSocket ping/pong as needed.

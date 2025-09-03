@@ -6,12 +6,13 @@ This repository uses a consistent configuration pattern to ensure clarity, safet
 - `Config` is JSON-serializable and validated with zod.
 - Provide `fromEnv()` helpers to parse and validate external input at the boundary.
 
-Single source of truth: Defaults live in code. Do not duplicate default values in docs. See:
+Explicit over defaults: Prefer no implicit defaults. Require explicit configuration at boundaries. When a default is unavoidable for operability, keep it centralized in code and make it clearly opt‑in. Do not duplicate default values in docs. See:
 
-- OSC egress target: `src/gateway/OscSender.ts:80`
-- WebSocket RPC: `src/gateway/WebSocketRpc.ts:184`
-- OSC ingress: `src/gateway/OscReceiver.ts:37`
-- Local asset path: `src/usecases/ReadLocalAsset.ts:37`
+- Aggregated app config (env → typed): `src/server/config.ts`
+- OSC egress target: `src/gateway/OscSender.ts`
+- WebSocket RPC: `src/gateway/WebSocketRpc.ts`
+- OSC ingress: `src/gateway/OscReceiver.ts`
+- Local asset path: `src/usecases/ReadLocalAsset.ts`
 
 Notes
 

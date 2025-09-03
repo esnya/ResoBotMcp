@@ -43,7 +43,7 @@ export const CaptureCameraInput = {
 } as const;
 
 export const WaitResoniteInput = {
-  timeoutMs: z.number().int().min(1).optional(),
+  timeoutMs: z.number().int().min(1).default(15000),
 } as const;
 
 /** Arm and Lamp controls (OSC) */

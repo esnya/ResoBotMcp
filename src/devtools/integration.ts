@@ -70,8 +70,11 @@ async function seedPose(
   heading: number,
   pitch: number,
 ): Promise<void> {
-  const host = process.env['RESONITE_OSC_LISTEN_HOST'] ?? '127.0.0.1';
-  const port = Number(process.env['RESONITE_OSC_LISTEN_PORT'] ?? '9010');
+  const { loadAppConfigFromEnv } = await import('../server/config.js');
+  const app = loadAppConfigFromEnv();
+  const listenHost = process.env['RESONITE_OSC_LISTEN_HOST'] ?? app.oscIngress.host;
+  const host = listenHost === '0.0.0.0' ? '127.0.0.1' : listenHost;
+  const port = Number(process.env['RESONITE_OSC_LISTEN_PORT'] ?? String(app.oscIngress.port));
   const osc = new OscSender({ host, port, address: '/noop' });
   try {
     await osc.sendNumbers('/virtualbot/position', x, y, z);

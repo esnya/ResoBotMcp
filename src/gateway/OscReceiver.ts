@@ -1,15 +1,12 @@
 import { Server } from 'node-osc';
-import { z } from 'zod';
 import { scoped } from '../logging.js';
+import { z } from 'zod';
+import { OscIngressConfig } from '../types/config.js';
 
 const log = scoped('osc-recv');
 const _noop = (): void => {};
 
-export const OscIngressConfigSchema = z.object({
-  host: z.string().min(1).default('0.0.0.0'),
-  port: z.number().int().min(1).max(65535).default(9010),
-});
-export type OscIngressConfig = z.infer<typeof OscIngressConfigSchema>;
+// Config schema moved to types/config.ts
 
 type Handler = (args: unknown[]) => void;
 
@@ -54,7 +51,12 @@ export class OscReceiver {
 }
 
 export function oscIngressConfigFromEnv(): OscIngressConfig {
-  const host = process.env['RESONITE_OSC_LISTEN_HOST'] ?? '0.0.0.0';
-  const port = Number(process.env['RESONITE_OSC_LISTEN_PORT'] ?? '9010');
-  return OscIngressConfigSchema.parse({ host, port });
+  const EnvSchema = z.object({
+    host: z.string().min(1).default('0.0.0.0'),
+    port: z.coerce.number().int().min(1).max(65535).default(9010),
+  });
+  return EnvSchema.parse({
+    host: process.env['RESONITE_OSC_LISTEN_HOST'],
+    port: process.env['RESONITE_OSC_LISTEN_PORT'],
+  });
 }

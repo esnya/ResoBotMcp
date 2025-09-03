@@ -1,11 +1,12 @@
 import 'dotenv/config';
 import { loadOscTargetFromEnv, OscSender } from '../gateway/OscSender.js';
-import { wsConfigFromEnv, WebSocketRpcServer } from '../gateway/WebSocketRpc.js';
+import { WebSocketRpcServer } from '../gateway/WebSocketRpc.js';
 import { SetExpression } from '../usecases/SetExpression.js';
 import { SetAccentHue } from '../usecases/SetAccentHue.js';
 import { z } from 'zod';
 import { ADDR } from '../gateway/addresses.js';
 import { Server as OscServer } from 'node-osc';
+import { loadAppConfigFromEnv } from '../server/config.js';
 
 type Command =
   | { kind: 'help' }
@@ -134,8 +135,9 @@ function parseArgs(argv: string[]): Command {
     }
     case 'osc:listen':
     case 'osc-listen': {
-      const host = kv['host'] ?? process.env['RESONITE_OSC_LISTEN_HOST'] ?? '0.0.0.0';
-      const port = Number(kv['port'] ?? process.env['RESONITE_OSC_LISTEN_PORT'] ?? '9010');
+      const defaults = loadAppConfigFromEnv();
+      const host = kv['host'] ?? defaults.oscIngress.host;
+      const port = Number(kv['port'] ?? String(defaults.oscIngress.port));
       if (!Number.isFinite(port)) throw new Error('--port must be a number');
       const filter = kv['filter'];
       const durationMs = asNumber('durationMs');
@@ -192,8 +194,8 @@ async function main(): Promise<void> {
     return;
   }
   if (cmd.kind === 'ws:call') {
-    const cfg = wsConfigFromEnv();
-    const server = new WebSocketRpcServer(cfg);
+    const app = loadAppConfigFromEnv();
+    const server = new WebSocketRpcServer(app.ws);
     try {
       const { method, args, timeoutMs, connectTimeoutMs, raw, flat } = cmd;
       if (raw) {
@@ -221,8 +223,8 @@ async function main(): Promise<void> {
     return;
   }
   if (cmd.kind === 'ws:ping') {
-    const cfg = wsConfigFromEnv();
-    const server = new WebSocketRpcServer(cfg);
+    const app = loadAppConfigFromEnv();
+    const server = new WebSocketRpcServer(app.ws);
     try {
       const res = await server.request('ping', { text: cmd.text }, { timeoutMs: 15000 });
       const parsed = z.object({ text: z.string() }).parse(res);
@@ -299,8 +301,10 @@ async function main(): Promise<void> {
       return;
     }
     if (cmd.kind === 'osc:pose') {
-      const host = process.env['RESONITE_OSC_LISTEN_HOST'] ?? '127.0.0.1';
-      const port = Number(process.env['RESONITE_OSC_LISTEN_PORT'] ?? '9010');
+      const app = loadAppConfigFromEnv();
+      const listenHost = process.env['RESONITE_OSC_LISTEN_HOST'] ?? app.oscIngress.host;
+      const host = listenHost === '0.0.0.0' ? '127.0.0.1' : listenHost;
+      const port = Number(process.env['RESONITE_OSC_LISTEN_PORT'] ?? String(app.oscIngress.port));
       const ingress = new OscSender({ host, port, address: ADDR.pose.position });
       await ingress.sendNumbers(ADDR.pose.position, cmd.x, cmd.y, cmd.z);
       await ingress.sendNumbers(ADDR.pose.rotation, cmd.heading, cmd.pitch);

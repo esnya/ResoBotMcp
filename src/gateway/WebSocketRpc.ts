@@ -7,8 +7,8 @@ import {
   buildResponseOk,
   buildResponseError,
 } from './FlatKV.js';
-import { z } from 'zod';
 import { scoped } from '../logging.js';
+import { WebSocketConfig, WebSocketConfigSchema } from '../types/config.js';
 
 const log = scoped('ws-rpc');
 const _noop = (): void => {};
@@ -24,12 +24,7 @@ export class RpcError extends Error {
   }
 }
 
-export const WebSocketConfigSchema = z.object({
-  port: z.number().int().min(1).max(65535).default(8765),
-  keepAliveIntervalMs: z.number().int().min(0).default(60_000),
-  keepAliveTimeoutMs: z.number().int().min(0).default(86_400_000),
-});
-export type WebSocketConfig = z.infer<typeof WebSocketConfigSchema>;
+// Config schema moved to types/config.ts
 
 export type RpcHandler = (
   args: Record<string, string>,
@@ -40,8 +35,6 @@ export class WebSocketRpcServer {
   private readonly handlers = new Map<string, RpcHandler>();
   private readonly clients = new Set<WebSocket>();
   private readonly connectionWaiters: Array<(ws: WebSocket) => void> = [];
-  private readonly lastPong = new WeakMap<WebSocket, number>();
-  private keepAliveTimer?: ReturnType<typeof setInterval>;
   private readonly pending = new Map<
     string,
     {
@@ -55,10 +48,7 @@ export class WebSocketRpcServer {
     this.wss = new WebSocketServer({ port: config.port });
     this.wss.on('connection', (ws) => this.onConnection(ws));
     log.info({ port: config.port }, 'WebSocket RPC listening');
-    const { keepAliveIntervalMs } = this.config;
-    if (keepAliveIntervalMs > 0) {
-      this.keepAliveTimer = setInterval(() => this.tickKeepAlive(), keepAliveIntervalMs);
-    }
+    // No server-side keepalive monitoring; Resonite may freeze; avoid auto-disconnect.
   }
 
   register(method: string, handler: RpcHandler): void {
@@ -67,7 +57,6 @@ export class WebSocketRpcServer {
 
   close(): void {
     try {
-      if (this.keepAliveTimer) clearInterval(this.keepAliveTimer);
       for (const ws of this.clients) {
         try {
           ws.terminate();
@@ -94,7 +83,7 @@ export class WebSocketRpcServer {
     }
   }
 
-  async waitForConnection(timeoutMs: number = 15000): Promise<void> {
+  async waitForConnection(timeoutMs: number): Promise<void> {
     const existing = this.clients.values().next().value as WebSocket | undefined;
     if (existing) return;
     await new Promise<void>((resolve, reject) => {
@@ -109,26 +98,19 @@ export class WebSocketRpcServer {
   private onConnection(ws: WebSocket): void {
     log.info('client connected');
     this.clients.add(ws);
-    this.lastPong.set(ws, Date.now());
     while (this.connectionWaiters.length > 0) {
       const fn = this.connectionWaiters.shift();
       try {
         fn && fn(ws);
       } catch {
-        /* noop */
+        // eslint-disable-next-line no-empty -- a waiter failing is non-fatal; continue notifying others
+        {
+        }
       }
     }
     ws.on('close', () => {
       this.clients.delete(ws);
-      try {
-        this.lastPong.delete(ws);
-      } catch {
-        _noop();
-      }
       log.info('client disconnected');
-    });
-    ws.on('pong', () => {
-      this.lastPong.set(ws, Date.now());
     });
     ws.on('message', async (data: WebSocket.RawData) => {
       let text: string;
@@ -213,27 +195,7 @@ export class WebSocketRpcServer {
     });
   }
 
-  private tickKeepAlive(): void {
-    const now = Date.now();
-    const timeout = this.config.keepAliveTimeoutMs;
-    for (const ws of this.clients) {
-      const last = this.lastPong.get(ws) ?? 0;
-      if (timeout > 0 && last > 0 && now - last > timeout) {
-        try {
-          ws.terminate();
-        } catch {
-          _noop();
-        }
-        this.clients.delete(ws);
-        continue;
-      }
-      try {
-        ws.ping();
-      } catch {
-        _noop();
-      }
-    }
-  }
+  // Server-side keepalive monitoring removed.
 
   async request(
     method: string,
@@ -287,8 +249,8 @@ export class WebSocketRpcServer {
 }
 
 export function wsConfigFromEnv(): WebSocketConfig {
-  const port = Number(process.env['RESONITE_WS_PORT'] ?? '8765');
-  const keepAliveIntervalMs = Number(process.env['RESONITE_WS_KEEPALIVE_INTERVAL_MS'] ?? '60000');
-  const keepAliveTimeoutMs = Number(process.env['RESONITE_WS_KEEPALIVE_TIMEOUT_MS'] ?? '86400000');
-  return WebSocketConfigSchema.parse({ port, keepAliveIntervalMs, keepAliveTimeoutMs });
+  const envPort = process.env['RESONITE_WS_PORT'];
+  const cfg: Partial<WebSocketConfig> = {};
+  if (envPort !== undefined && envPort !== '') cfg.port = Number(envPort);
+  return WebSocketConfigSchema.parse(cfg);
 }

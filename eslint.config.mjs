@@ -45,12 +45,30 @@ export default tseslint.config(
       // JS hygiene
       // Production code must not use console (stderr-only via pino allowed).
       'no-console': ['error', { allow: ['error'] }],
+      // Empty blocks are forbidden, including empty catch.
+      'no-empty': ['error', { allowEmptyCatch: false }],
       'no-implicit-coercion': 'error',
       'no-restricted-syntax': [
         'error',
         {
           selector: 'TSEnumDeclaration',
           message: 'Use union string/number literal types instead of enums.',
+        },
+        // Do not use default parameters; require explicit values at call sites.
+        {
+          selector: 'FunctionDeclaration > AssignmentPattern',
+          message:
+            'Default parameters are prohibited by policy. Require explicit arguments and handle absence explicitly.',
+        },
+        {
+          selector: 'FunctionExpression > AssignmentPattern',
+          message:
+            'Default parameters are prohibited by policy. Require explicit arguments and handle absence explicitly.',
+        },
+        {
+          selector: 'ArrowFunctionExpression > AssignmentPattern',
+          message:
+            'Default parameters are prohibited by policy. Require explicit arguments and handle absence explicitly.',
         },
       ],
     },
@@ -66,6 +84,7 @@ export default tseslint.config(
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
       'no-console': 'off',
+      'no-restricted-syntax': 'off',
     },
   },
   {
@@ -73,6 +92,7 @@ export default tseslint.config(
     files: ['src/devtools/**/*.ts'],
     rules: {
       'no-console': 'off',
+      'no-restricted-syntax': 'off',
     },
   },
   {

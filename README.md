@@ -28,6 +28,37 @@ OSC address for text egress is fixed to `/virtualbot/text` in code.
 
 Resonite side: receive a string at the configured OSC address and route to your UI or speech component.
 
+## Scope and Intended Use
+
+- This repository targets a very limited, experimental use case. It intentionally hides most Resonite/Protoflux implementation details behind a small, explicit contract surface (addresses, schemas, and RPC names).
+- Contracts live in code and docs. Breaking changes require a Migration note in PRs.
+
+Key entry points:
+
+- Aggregated app config (env → typed): `src/server/config.ts`
+- Transport adapters: `src/gateway/`
+- Tool contracts: `src/tools/contracts.ts`
+- OSC ingress payload schemas: `src/schemas/osc.ts` (wired in `src/server/context.ts`)
+- WS RPC protocol reference: `docs/PROTOCOL_WS_RPC.md`
+
+## Protoflux (Resonite) Integration Outline
+
+Implementation specifics belong in the world graph. This outline avoids duplicating protocol details and points to contracts.
+
+- OSC egress (server → Resonite): addresses in `src/gateway/addresses.ts`
+- OSC ingress (Resonite → server):
+  - `/virtualbot/position` floats: `[x, y, z]`
+  - `/virtualbot/rotation` floats: `[heading, pitch]`
+  - `/virtualbot/arm/contact/meta` string: `[meta]`
+  - `/virtualbot/arm/contact/grabbed` int/bool: `[0|1]` or `[true|false]`
+- WS RPC: see `docs/PROTOCOL_WS_RPC.md` for request/response fields and error paths.
+
+Suggested wiring:
+
+- Add OSC Transmitter nodes for text and numeric channels matching `addresses.ts`.
+- Add OSC Receiver nodes for the ingress channels above; feed pose and contact values into your rig.
+- For RPC methods (e.g., `camera_capture`, `arm_grab`, `move_relative`), implement a Resonite WS client that encodes/decodes FlatKV frames per `docs/PROTOCOL_WS_RPC.md`.
+
 ## MCP Tools (minimal)
 
 - `set_text`: send text via OSC.

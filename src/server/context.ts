@@ -1,10 +1,17 @@
-import { OscSender, loadOscTargetFromEnv } from '../gateway/OscSender.js';
-import { WebSocketRpcServer, wsConfigFromEnv } from '../gateway/WebSocketRpc.js';
-import { OscReceiver, oscIngressConfigFromEnv } from '../gateway/OscReceiver.js';
+import { OscSender } from '../gateway/OscSender.js';
+import { WebSocketRpcServer } from '../gateway/WebSocketRpc.js';
+import { OscReceiver } from '../gateway/OscReceiver.js';
 import { PoseTracker } from '../gateway/PoseTracker.js';
 import { ArmContactTracker } from '../gateway/ArmContactTracker.js';
 import { scoped } from '../logging.js';
 import { ADDR } from '../gateway/addresses.js';
+import { loadAppConfigFromEnv } from './config.js';
+import {
+  PosePositionArgsSchema,
+  PoseRotationArgsSchema,
+  ArmContactMetaArgsSchema,
+  ArmContactGrabbedArgsSchema,
+} from '../schemas/osc.js';
 
 export type AppContext = {
   oscSender: OscSender;
@@ -15,40 +22,37 @@ export type AppContext = {
 };
 
 export function createAppContext(): AppContext {
-  const oscTarget = loadOscTargetFromEnv();
+  // Aggregate and validate env at the boundary.
+  const appConfig = loadAppConfigFromEnv();
+  const oscTarget = appConfig.oscEgress;
   const log = scoped('bootstrap');
   log.info({ osc: oscTarget }, 'server starting');
 
   const oscSender = new OscSender(oscTarget);
-  const wsServer = new WebSocketRpcServer(wsConfigFromEnv());
+  const wsServer = new WebSocketRpcServer(appConfig.ws);
   const poseTracker = new PoseTracker();
   const armContact = new ArmContactTracker();
-  const oscIngress = new OscReceiver(oscIngressConfigFromEnv());
+  const oscIngress = new OscReceiver(appConfig.oscIngress);
 
-  oscIngress.register(ADDR.pose.position, (args) => {
-    const [x, y, z] = args as number[];
-    poseTracker.updatePosition(Number(x), Number(y), Number(z));
-    scoped('osc:position').debug({ x: Number(x), y: Number(y), z: Number(z) }, 'position updated');
+  oscIngress.register(ADDR.pose.position, (raw) => {
+    const [x, y, z] = PosePositionArgsSchema.parse(raw);
+    poseTracker.updatePosition(x, y, z);
+    scoped('osc:position').debug({ x, y, z }, 'position updated');
   });
-  oscIngress.register(ADDR.pose.rotation, (args) => {
-    const [heading, pitch] = args as number[];
-    poseTracker.updateRotation(Number(heading), Number(pitch));
-    scoped('osc:rotation').debug(
-      { heading: Number(heading), pitch: Number(pitch) },
-      'rotation updated',
-    );
+  oscIngress.register(ADDR.pose.rotation, (raw) => {
+    const [heading, pitch] = PoseRotationArgsSchema.parse(raw);
+    poseTracker.updateRotation(heading, pitch);
+    scoped('osc:rotation').debug({ heading, pitch }, 'rotation updated');
   });
 
-  oscIngress.register(ADDR.arm.contact.meta, (args) => {
-    const [meta] = args as unknown[];
-    if (typeof meta === 'string') {
-      armContact.updateMeta(meta);
-      scoped('osc:arm-contact').debug({ meta }, 'arm meta updated');
-    }
+  oscIngress.register(ADDR.arm.contact.meta, (raw) => {
+    const [meta] = ArmContactMetaArgsSchema.parse(raw);
+    armContact.updateMeta(meta);
+    scoped('osc:arm-contact').debug({ meta }, 'arm meta updated');
   });
-  oscIngress.register(ADDR.arm.contact.grabbed, (args) => {
-    const [flag] = args as unknown[];
-    const grabbed = typeof flag === 'number' ? Number(flag) !== 0 : Boolean(flag);
+  oscIngress.register(ADDR.arm.contact.grabbed, (raw) => {
+    const [flag] = ArmContactGrabbedArgsSchema.parse(raw);
+    const grabbed = typeof flag === 'number' ? flag !== 0 : Boolean(flag);
     armContact.updateGrabbed(grabbed);
     scoped('osc:arm-contact').debug({ grabbed }, 'arm grabbed updated');
   });

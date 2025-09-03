@@ -12,8 +12,12 @@ import {
   SetLampInput,
   TurnRelativeInput,
 } from '../tools/contracts.js';
-import { SetAccentHue, SetAccentHueInput } from '../usecases/SetAccentHue.js';
-import { SetExpression, SetExpressionInput } from '../usecases/SetExpression.js';
+import { SetAccentHue, SetAccentHueInput, SetAccentHueSchema } from '../usecases/SetAccentHue.js';
+import {
+  SetExpression,
+  SetExpressionInput,
+  SetExpressionSchema,
+} from '../usecases/SetExpression.js';
 import { ctx, server } from './app.js';
 import { ADDR } from '../gateway/addresses.js';
 
@@ -46,7 +50,9 @@ server.registerTool(
   'set_expression',
   { description: 'Set facial expression.', inputSchema: SetExpressionInput },
   async (args: { eyesId?: string | undefined; mouthId?: string | undefined }) => {
-    await setExpression.execute(args);
+    // Pre-parse with zod at the tool boundary
+    const parsed = SetExpressionSchema.parse(args);
+    await setExpression.execute(parsed);
     return { content: [{ type: 'text', text: 'delivered' }] };
   },
 );
@@ -55,7 +61,8 @@ server.registerTool(
   'ping',
   { description: 'WS echo roundtrip.', inputSchema: PingInput },
   async (args: { text: string }) => {
-    const res = await ctx.wsServer.request('ping', { text: args.text ?? '' });
+    const parsedIn = z.object(PingInput).parse(args);
+    const res = await ctx.wsServer.request('ping', { text: parsedIn.text });
     const parsed = z.object({ text: z.string() }).parse(res);
     return {
       content: [{ type: 'text', text: parsed.text }],
@@ -117,7 +124,9 @@ server.registerTool(
   'set_accent_hue',
   { description: 'Set accent hue.', inputSchema: SetAccentHueInput },
   async (args: { hue: number }) => {
-    await setAccentHue.execute(args);
+    // Pre-parse with zod at the tool boundary
+    const parsed = SetAccentHueSchema.parse(args);
+    await setAccentHue.execute(parsed);
     return { content: [{ type: 'text', text: 'delivered' }] };
   },
 );
@@ -164,7 +173,7 @@ server.registerTool(
   },
   async (args: { timeoutMs?: number | undefined }) => {
     const { timeoutMs } = z.object(WaitResoniteInput).parse(args);
-    await ctx.wsServer.waitForConnection(typeof timeoutMs === 'number' ? timeoutMs : 15000);
+    await ctx.wsServer.waitForConnection(timeoutMs);
     return { content: [{ type: 'text', text: 'connected' }] };
   },
 );
@@ -213,10 +222,11 @@ server.registerTool(
     direction: 'forward' | 'back' | 'left' | 'right' | 'up' | 'down';
     distance: number;
   }) => {
-    const d = Number(args.distance);
+    const parsed = z.object({ direction: DirectionSchema, distance: z.number() }).parse(args);
+    const d = parsed.distance;
     if (!Number.isFinite(d) || d === 0) return { content: [{ type: 'text', text: 'noop' }] };
     let vec: [number, number, number] = [0, 0, 0];
-    switch (args.direction) {
+    switch (parsed.direction) {
       case 'forward':
         vec = [0, 0, d];
         break;

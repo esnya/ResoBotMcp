@@ -1,21 +1,12 @@
 import { Client } from 'node-osc';
-import { z } from 'zod';
 import { scoped } from '../logging.js';
 import { ADDR } from './addresses.js';
+import { z } from 'zod';
+import { OscTarget } from '../types/config.js';
 
 const log = scoped('osc');
 
-export type OscTarget = {
-  host: string;
-  port: number;
-  address: string;
-};
-
-export const OscTargetSchema = z.object({
-  host: z.string().min(1),
-  port: z.number().int().min(1).max(65535),
-  address: z.string().startsWith('/'),
-});
+// Target schema moved to types/config.ts
 
 export class OscSender {
   private client: Client;
@@ -124,8 +115,14 @@ export class OscSender {
 
 /** Address is intentionally fixed to avoid hidden defaults divergence across tools/docs */
 export function loadOscTargetFromEnv(): OscTarget {
-  const host = process.env['RESONITE_OSC_HOST']?.trim() || '127.0.0.1';
-  const port = Number(process.env['RESONITE_OSC_PORT']?.trim() ?? '9000');
-  const address = ADDR.text;
-  return OscTargetSchema.parse({ host, port, address });
+  const EnvSchema = z.object({
+    host: z.string().trim().default('127.0.0.1'),
+    port: z.coerce.number().int().min(1).max(65535).default(9000),
+    address: z.string().startsWith('/').default(ADDR.text),
+  });
+  return EnvSchema.parse({
+    host: process.env['RESONITE_OSC_HOST'],
+    port: process.env['RESONITE_OSC_PORT'],
+    address: ADDR.text,
+  });
 }
