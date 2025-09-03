@@ -114,7 +114,7 @@ function renderHtml(title: string, events: AnyEvent[]): string {
         if(ev.type === 'text'){
           li.innerHTML = '<div><strong>set_text</strong></div>'
             + '<div>' + escapeHtmlInline(ev.text) + '</div>'
-            + '<div class="meta">' + (ev.pose ? ('x=' + fmt(ev.pose.x) + ' y=' + fmt(ev.pose.y) + ' z=' + fmt(ev.pose.z) + ' h=' + fmt(ev.pose.heading) + ' p=' + fmt(ev.pose.pitch) + ' | ') : '') + time + '</div>';
+            + '<div class="meta">' + (ev.pose ? (poseLabel(ev.pose) + ' | ') : '') + time + '</div>';
         } else if(ev.type === 'tool'){
           if(ev.name === 'set_text') continue;
           const head = '<div><strong>tool</strong>: ' + escapeHtmlInline(ev.name) + '</div>';
@@ -125,7 +125,7 @@ function renderHtml(title: string, events: AnyEvent[]): string {
           }
           if(ev.structured){ body += '<div class="meta">' + escapeHtmlInline(JSON.stringify(ev.structured)) + '</div>'; }
           const status = ev.ok ? 'ok' : ('error: ' + escapeHtmlInline(ev.error || ''));
-          const pose = (ev.pose ? (' | ' + 'x=' + fmt(ev.pose.x) + ' y=' + fmt(ev.pose.y) + ' z=' + fmt(ev.pose.z) + ' h=' + fmt(ev.pose.heading) + ' p=' + fmt(ev.pose.pitch)) : '');
+          const pose = (ev.pose ? (' | ' + poseLabel(ev.pose)) : '');
           li.innerHTML = head + body + '<div class="meta">' + status + ' | ' + time + pose + '</div>';
         } else if(ev.type === 'pose'){
           continue; // hide pose rows from timeline
@@ -165,6 +165,21 @@ function renderHtml(title: string, events: AnyEvent[]): string {
       });
       ctx.stroke();
 
+      // heading arcs for all points (semi-transparent)
+      const half = 20 * Math.PI/180; // ±20°
+      const radius = 14; // px
+      ctx.fillStyle = 'rgba(0,136,255,0.18)';
+      poses.forEach((p)=>{
+        const cx = p.x*scale + offsetX;
+        const cz = p.z*scale + offsetZ;
+        const ang = Math.atan2(-(Math.cos(p.heading * Math.PI/180)), Math.sin(p.heading * Math.PI/180));
+        ctx.beginPath();
+        ctx.moveTo(cx, canvas.height - cz);
+        ctx.arc(cx, canvas.height - cz, radius, ang - half, ang + half);
+        ctx.closePath();
+        ctx.fill();
+      });
+
       // origin axes (X/Z) if within bounds
       const ox = 0*scale + offsetX;
       const oz = 0*scale + offsetZ;
@@ -193,6 +208,19 @@ function renderHtml(title: string, events: AnyEvent[]): string {
     }
 
     function fmt(n){ return (Math.round(n*100)/100).toFixed(2); }
+    function heading360(deg){
+      let h = Math.round(deg % 360);
+      if(h < 0) h += 360;
+      if(h === 0) h = 360;
+      return h;
+    }
+    function poseLabel(p){
+      const pos = '📍[' + fmt(p.x) + ',' + fmt(p.y) + ',' + fmt(p.z) + ']';
+      const h = '🧭' + heading360(p.heading) + '°';
+      const sign = p.pitch >= 0 ? '⤴' : '⤵';
+      const ang = sign + Math.abs(Math.round(p.pitch)) + '°';
+      return pos + ' ' + h + ' ' + ang;
+    }
     function escapeHtmlInline(s){ return (s||'').replace(/[&<>]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;"})[c]); }
     async function downscaleDataUrl(dataUrl, maxDim=256, outType='image/jpeg', q=0.7){
       return new Promise((resolve)=>{
