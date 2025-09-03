@@ -46,7 +46,7 @@ export const WaitResoniteInput = {
   timeoutMs: z.number().int().min(1).optional(),
 } as const;
 
-// Arm and Lamp controls (OSC)
+/** Arm and Lamp controls (OSC) */
 export const SetArmPositionInput = {
   x: z.number(),
   y: z.number(),
