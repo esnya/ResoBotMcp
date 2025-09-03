@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { scoped } from '../logging.js';
 
 const log = scoped('osc-recv');
+const _noop = (): void => {};
 
 export const OscIngressConfigSchema = z.object({
   host: z.string().min(1).default('0.0.0.0'),
@@ -27,7 +28,7 @@ export class OscReceiver {
         const preview = rest.map((v) => (typeof v === 'number' ? v : String(v))).slice(0, 8);
         log.debug({ address, args: preview }, 'osc message received');
       } catch {
-        /* noop */
+        _noop();
       }
       const h = this.handlers.get(address);
       if (h) {

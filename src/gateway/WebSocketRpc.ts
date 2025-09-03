@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { scoped } from '../logging.js';
 
 const log = scoped('ws-rpc');
+const _noop = (): void => {};
 
 export class RpcError extends Error {
   constructor(
@@ -71,7 +72,7 @@ export class WebSocketRpcServer {
         try {
           ws.terminate();
         } catch {
-          /* noop */
+          _noop();
         }
       }
       this.clients.clear();
@@ -80,7 +81,7 @@ export class WebSocketRpcServer {
           if (entry.timer) clearTimeout(entry.timer);
           entry.reject(new Error('server closed'));
         } catch {
-          /* noop */
+          _noop();
         }
         this.pending.delete(id);
       }
@@ -88,7 +89,7 @@ export class WebSocketRpcServer {
       try {
         this.wss.close();
       } catch {
-        /* noop */
+        _noop();
       }
     }
   }
@@ -122,7 +123,7 @@ export class WebSocketRpcServer {
       try {
         this.lastPong.delete(ws);
       } catch {
-        /* noop */
+        _noop();
       }
       log.info('client disconnected');
     });
@@ -221,7 +222,7 @@ export class WebSocketRpcServer {
         try {
           ws.terminate();
         } catch {
-          /* noop */
+          _noop();
         }
         this.clients.delete(ws);
         continue;
@@ -229,7 +230,7 @@ export class WebSocketRpcServer {
       try {
         ws.ping();
       } catch {
-        /* noop */
+        _noop();
       }
     }
   }
