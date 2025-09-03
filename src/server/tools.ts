@@ -270,5 +270,8 @@ server.registerTool(
 server.registerTool('get_pose', { description: 'Get current pose.' }, (_args: unknown) => {
   const pose = ctx.poseTracker.get();
   if (!pose) throw new Error('pose unavailable');
-  return { content: [{ type: 'text', text: JSON.stringify(pose) }] };
+  return {
+    content: [{ type: 'text', text: JSON.stringify(pose) }],
+    structuredContent: pose,
+  } as const;
 });
