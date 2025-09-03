@@ -201,7 +201,12 @@ server.registerTool(
 // Get last arm contact metadata and grabbed flag
 server.registerTool('get_arm_contact', { description: 'Last arm contact.' }, (_args: unknown) => {
   const c = ctx.armContact.get();
-  if (!c) throw new Error('arm contact unavailable');
+  // If no contact has been received yet, or metadata is empty, guide the user.
+  if (!c || !c.meta || String(c.meta).trim().length === 0) {
+    const msg =
+      'No arm contact detected. Move the arm or approach the target until contact is made.';
+    return { content: [{ type: 'text', text: msg }] };
+  }
   return { content: [{ type: 'text', text: JSON.stringify(c) }] };
 });
 
