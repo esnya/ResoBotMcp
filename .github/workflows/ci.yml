@@ -64,7 +64,13 @@ jobs:
       - run: npm ci
         if: steps.changes.outputs.docs_only != 'true'
       - name: Prettier check (always)
-        run: npm run format:check
+        run: |
+          if [ "${{ steps.changes.outputs.docs_only }}" = "true" ]; then
+            # Avoid full install on docs-only changes; fetch Prettier via npx
+            npx -y prettier@^3.6.2 --check .
+          else
+            npm run format:check
+          fi
       - name: Lint + typecheck
         if: steps.changes.outputs.docs_only != 'true'
         run: npm run lint && npm run typecheck
