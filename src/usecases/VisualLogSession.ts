@@ -72,7 +72,9 @@ function renderHtml(title: string, events: AnyEvent[]): string {
     :root{color-scheme:light dark}
     body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;margin:0;padding:0}
     header{padding:12px 16px;border-bottom:1px solid #9994;display:flex;justify-content:space-between;align-items:center}
-    main{padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
+    main{padding:12px;display:grid;grid-template-columns:1fr 380px;gap:12px;align-items:start;min-height:calc(100vh - 56px)}
+    #map{height:100%;}
+    #timeline{overflow:auto; max-height:calc(100vh - 56px);}
     ul{list-style:none;padding:0}
     li{padding:6px 8px;border-bottom:1px solid #9993}
     canvas{max-width:100%;height:auto;border:1px solid #9994;border-radius:8px;background:linear-gradient(90deg,#0000 24%,#9992 25% 26%,#0000 27% 74%,#9992 75% 76%,#0000 77%),linear-gradient(#0000 24%,#9992 25% 26%,#0000 27% 74%,#9992 75% 76%,#0000 77%)}
@@ -89,17 +91,18 @@ function renderHtml(title: string, events: AnyEvent[]): string {
     </div>
   </header>
   <main>
-    <section class="col" id="timeline"><h3>Timeline</h3><div id="timelineBody"></div></section>
-    <section class="col" id="map"><h3>Position</h3>
-      <canvas id="mapCanvas" width="960" height="540"></canvas>
-      <div class="meta">Top-down view (X right, Z forward). Scale auto-fit.</div>
+    <section class="col" id="map">
+      <canvas id="mapCanvas"></canvas>
     </section>
+    <section class="col" id="timeline"><div id="timelineBody"></div></section>
   </main>
   <script id="visual-log-data" type="application/json">${json}</script>
   <script>
     const data = JSON.parse(document.getElementById('visual-log-data').textContent || '[]');
     const events = Array.isArray(data) ? data : [];
     const timelineBody = document.getElementById('timelineBody');
+    const mapSection = document.getElementById('map');
+    const canvas = document.getElementById('mapCanvas');
 
     // Timeline (newest first)
     function renderTimeline(){
@@ -133,11 +136,11 @@ function renderHtml(title: string, events: AnyEvent[]): string {
       downscaleImages();
     }
 
-    // Map (top-down X-Z, with simple auto scale and offset)
+    // Map (top-down X-Z)
     function renderMap(){
-      const canvas = document.getElementById('mapCanvas');
       const ctx = canvas.getContext('2d');
       const poses = events.filter(e=>e.type==='pose');
+      if(!ctx){ return; }
       ctx.clearRect(0,0,canvas.width,canvas.height);
       if(poses.length < 1){ return; }
       const xs = poses.map(p=>p.x);
@@ -162,17 +165,31 @@ function renderHtml(title: string, events: AnyEvent[]): string {
       });
       ctx.stroke();
 
+      // origin axes (X/Z) if within bounds
+      const ox = 0*scale + offsetX;
+      const oz = 0*scale + offsetZ;
+      if (ox >= 0 && ox <= canvas.width){
+        ctx.strokeStyle = '#9996'; ctx.lineWidth = 1; ctx.beginPath();
+        ctx.moveTo(ox, 0); ctx.lineTo(ox, canvas.height); ctx.stroke();
+      }
+      if (oz >= 0 && oz <= canvas.height){
+        ctx.strokeStyle = '#9996'; ctx.lineWidth = 1; ctx.beginPath();
+        ctx.moveTo(0, canvas.height - oz); ctx.lineTo(canvas.width, canvas.height - oz); ctx.stroke();
+      }
+      // axis labels near origin
+      ctx.fillStyle = '#bbb'; ctx.font = '12px system-ui';
+      if (ox >= 10 && ox <= canvas.width-10 && canvas.height - oz >= 10){
+        ctx.fillText('O', ox + 4, canvas.height - oz - 4);
+      }
+      ctx.fillText('X →', Math.min(canvas.width - 40, Math.max(10, canvas.width - 60)), canvas.height - 10);
+      ctx.save(); ctx.translate(10, 50); ctx.rotate(-Math.PI/2); ctx.fillText('Z →', 0, 0); ctx.restore();
+
       // head marker (latest)
       const latest = poses[poses.length - 1];
       const lx = latest.x*scale + offsetX;
       const lz = latest.z*scale + offsetZ;
       ctx.fillStyle = '#f50'; ctx.beginPath();
       ctx.arc(lx, canvas.height - lz, 4, 0, Math.PI*2); ctx.fill();
-
-      // axes legend
-      ctx.fillStyle = '#999'; ctx.font = '12px system-ui';
-      ctx.fillText('X ->', canvas.width - 60, canvas.height - 10);
-      ctx.save(); ctx.translate(10, 50); ctx.rotate(-Math.PI/2); ctx.fillText('Z ->', 0, 0); ctx.restore();
     }
 
     function fmt(n){ return (Math.round(n*100)/100).toFixed(2); }
@@ -203,7 +220,23 @@ function renderHtml(title: string, events: AnyEvent[]): string {
         img.removeAttribute('data-original');
       }
     }
-    function init(){ renderTimeline(); renderMap(); }
+    function resizeCanvas(){
+      if(!mapSection) return;
+      const dpr = window.devicePixelRatio || 1;
+      const rect = mapSection.getBoundingClientRect();
+      const targetW = Math.max(300, Math.floor(rect.width));
+      const headerH = document.querySelector('header')?.getBoundingClientRect().height || 0;
+      const viewportH = window.innerHeight || document.documentElement.clientHeight || 800;
+      const targetH = Math.max(240, Math.floor(viewportH - headerH - 24));
+      canvas.style.width = targetW + 'px';
+      canvas.style.height = targetH + 'px';
+      canvas.width = Math.floor(targetW * dpr);
+      canvas.height = Math.floor(targetH * dpr);
+      const ctx = canvas.getContext('2d');
+      if(ctx){ ctx.setTransform(dpr,0,0,dpr,0,0); }
+    }
+    function init(){ resizeCanvas(); renderTimeline(); renderMap(); }
+    window.addEventListener('resize', ()=>{ resizeCanvas(); renderMap(); });
     init();
   </script>
 </body>
@@ -329,7 +362,11 @@ export class VisualLogSession {
     this.pendingText = undefined;
     const ev = { type: 'text', t, text } as unknown as TextEvent;
     if (this.lastPose)
-      (ev as unknown as { pose?: { x: number; y: number; z: number; heading: number; pitch: number } }).pose = {
+      (
+        ev as unknown as {
+          pose?: { x: number; y: number; z: number; heading: number; pitch: number };
+        }
+      ).pose = {
         ...this.lastPose,
       };
     this.events.push(ev);
