@@ -77,7 +77,6 @@ export class OscSender {
     }
     await new Promise<void>((resolve, reject) => {
       try {
-        // Default: send as float values
         const args = values.map((v) => ({ type: 'float', value: Number(v) }));
         this.client.send(address, ...args, (err: Error | null) => {
           if (err) {

@@ -21,7 +21,6 @@ const log = scoped('tool');
 const setExpression = new SetExpression(ctx.oscSender);
 const setAccentHue = new SetAccentHue(ctx.oscSender);
 
-// Register tools at import-time (declarative style)
 server.registerTool(
   'set_text',
   { description: 'Send text via OSC.', inputSchema: SetTextInput },
@@ -32,7 +31,6 @@ server.registerTool(
   },
 );
 
-// Set arm XYZ position
 server.registerTool(
   'set_arm_position',
   { description: 'Set arm XYZ.', inputSchema: SetArmPositionInput },
@@ -70,7 +68,6 @@ server.registerTool(
   'capture_camera',
   { description: 'Capture; returns image (base64).', inputSchema: CaptureCameraInput },
   async (args: { fov?: unknown; size?: unknown }) => {
-    // Normalize minor argument issues: defaults and nearest power-of-two size
     const defaultFov = 60;
     const defaultSize = 512;
     const rawFov = Number((args as { fov?: unknown }).fov);
@@ -86,7 +83,6 @@ server.registerTool(
     } else {
       size = defaultSize;
     }
-    // Validate final model (strict contract) before calling WS RPC
     const { fov: okFov, size: okSize } = z.object(CaptureCameraInput).parse({ fov, size });
     log.info({ name: 'capture_camera', fov: okFov, size: okSize, normalized: true }, 'request');
     try {
@@ -126,7 +122,7 @@ server.registerTool(
   },
 );
 
-// Lamp control: state (off/on) mapped to int (0/2), optional brightness [0..1]
+/** Lamp control: state (off/on) mapped to int (0/2), optional brightness [0..1] */
 server.registerTool(
   'set_lamp',
   { description: 'Lamp on/off and brightness.', inputSchema: SetLampInput },
@@ -147,19 +143,19 @@ server.registerTool(
   },
 );
 
-// Restore standard state (keep color as-is internally)
+/** Restore standard state (keep color as-is internally) */
 server.registerTool('reset', { description: 'Restore standard state.' }, async (_args: unknown) => {
-  // Neutral expression
-  await setExpression.execute({ eyesId: 'neutral', mouthId: 'line' });
-  // Lamp: off, and set temperature to warm (~2700K). Accent color is preserved elsewhere.
-  await ctx.oscSender.sendIntegers(ADDR.lamp.state, 0);
-  await ctx.oscSender.sendNumbers(ADDR.lamp.temperature, 2700);
-  // Brightness to standard level (full)
-  await ctx.oscSender.sendNumbers(ADDR.lamp.brightness, 1);
-  // Arm position to origin
-  await ctx.oscSender.sendNumbers(ADDR.arm.position, 0, 0, 0);
+  await resetToStandardState();
   return { content: [{ type: 'text', text: 'reset' }] } as const;
 });
+
+async function resetToStandardState(): Promise<void> {
+  await setExpression.execute({ eyesId: 'neutral', mouthId: 'line' });
+  await ctx.oscSender.sendIntegers(ADDR.lamp.state, 0);
+  await ctx.oscSender.sendNumbers(ADDR.lamp.temperature, 2700);
+  await ctx.oscSender.sendNumbers(ADDR.lamp.brightness, 1);
+  await ctx.oscSender.sendNumbers(ADDR.arm.position, 0, 0, 0);
+}
 
 server.registerTool(
   'wait_resonite',
@@ -169,13 +165,12 @@ server.registerTool(
   },
   async (args: { timeoutMs?: number | undefined }) => {
     const { timeoutMs } = z.object(WaitResoniteInput).parse(args);
-    // Default bounded wait for connection
     await ctx.wsServer.waitForConnection(typeof timeoutMs === 'number' ? timeoutMs : 15000);
     return { content: [{ type: 'text', text: 'connected' }] };
   },
 );
 
-// Arm instant actions (RPC): grab and release
+/** Arm instant actions (RPC): grab and release */
 server.registerTool('arm_grab', { description: 'Arm grab (instant).' }, async (_args: unknown) => {
   const rec = await ctx.wsServer.request('arm_grab', {});
   const parsed = z.object({ grabbing: z.string().min(1) }).parse(rec);
@@ -259,7 +254,6 @@ server.registerTool(
   async (args: { degrees: number }) => {
     const parsed = z.object(TurnRelativeInput).parse(args);
     const rec = await ctx.wsServer.request('turn_relative', { degrees: String(parsed.degrees) });
-    // No fields expected in response; enforce empty payload
     z.object({}).strict().parse(rec);
     return { content: [{ type: 'text', text: 'ok' }] } as const;
   },

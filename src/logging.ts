@@ -2,7 +2,7 @@ import pino, { type Logger } from 'pino';
 
 const level = process.env['LOG_LEVEL'] ?? 'info';
 
-// Route logs to stderr to avoid colliding with MCP stdio transport on stdout
+/** Route logs to stderr to avoid colliding with MCP stdio transport on stdout */
 const destination = pino.destination({ dest: 2, sync: false });
 
 export const logger: Logger = pino(

@@ -25,10 +25,8 @@ export class RpcError extends Error {
 
 export const WebSocketConfigSchema = z.object({
   port: z.number().int().min(1).max(65535).default(8765),
-  // Keepalive: send ping every interval; close only if no pong within timeout
   keepAliveIntervalMs: z.number().int().min(0).default(60_000),
-  // Very long by default to avoid premature disconnects
-  keepAliveTimeoutMs: z.number().int().min(0).default(86_400_000), // 24h
+  keepAliveTimeoutMs: z.number().int().min(0).default(86_400_000),
 });
 export type WebSocketConfig = z.infer<typeof WebSocketConfigSchema>;
 
@@ -69,24 +67,20 @@ export class WebSocketRpcServer {
   close(): void {
     try {
       if (this.keepAliveTimer) clearInterval(this.keepAliveTimer);
-      // Proactively terminate all clients to avoid keeping event loop alive
       for (const ws of this.clients) {
         try {
-          // terminate() closes the connection immediately
           ws.terminate();
         } catch {
-          // ignore
+          /* noop */
         }
       }
       this.clients.clear();
-      // Clear any pending timers/promises
       for (const [id, entry] of this.pending) {
         try {
           if (entry.timer) clearTimeout(entry.timer);
-          // Reject outstanding promises to unblock callers, if any
           entry.reject(new Error('server closed'));
         } catch {
-          // ignore
+          /* noop */
         }
         this.pending.delete(id);
       }
@@ -94,12 +88,11 @@ export class WebSocketRpcServer {
       try {
         this.wss.close();
       } catch {
-        // ignore
+        /* noop */
       }
     }
   }
 
-  // Wait for at least one client connection, with timeout
   async waitForConnection(timeoutMs: number = 15000): Promise<void> {
     const existing = this.clients.values().next().value as WebSocket | undefined;
     if (existing) return;
@@ -116,13 +109,12 @@ export class WebSocketRpcServer {
     log.info('client connected');
     this.clients.add(ws);
     this.lastPong.set(ws, Date.now());
-    // Notify waiters for first client connection
     while (this.connectionWaiters.length > 0) {
       const fn = this.connectionWaiters.shift();
       try {
         fn && fn(ws);
       } catch {
-        // ignore
+        /* noop */
       }
     }
     ws.on('close', () => {
@@ -130,7 +122,7 @@ export class WebSocketRpcServer {
       try {
         this.lastPong.delete(ws);
       } catch {
-        // ignore
+        /* noop */
       }
       log.info('client disconnected');
     });
@@ -138,12 +130,10 @@ export class WebSocketRpcServer {
       this.lastPong.set(ws, Date.now());
     });
     ws.on('message', async (data: WebSocket.RawData) => {
-      // Accept both text and binary frames; coerce to UTF-8 string
       let text: string;
       if (typeof data === 'string' || data instanceof String) {
         text = String(data);
       } else if (Array.isArray(data)) {
-        // Node ws can deliver an array of Buffers
         const buf = Buffer.concat(data as Buffer[]);
         text = buf.toString('utf8');
       } else if (data instanceof Buffer) {
@@ -226,13 +216,12 @@ export class WebSocketRpcServer {
     const now = Date.now();
     const timeout = this.config.keepAliveTimeoutMs;
     for (const ws of this.clients) {
-      // If a very long timeout is configured (or zero), avoid premature disconnects
       const last = this.lastPong.get(ws) ?? 0;
       if (timeout > 0 && last > 0 && now - last > timeout) {
         try {
           ws.terminate();
         } catch {
-          // ignore
+          /* noop */
         }
         this.clients.delete(ws);
         continue;
@@ -240,7 +229,7 @@ export class WebSocketRpcServer {
       try {
         ws.ping();
       } catch {
-        // ignore
+        /* noop */
       }
     }
   }
@@ -261,7 +250,6 @@ export class WebSocketRpcServer {
   ): Promise<{ record: Record<string, string>; flat: FlatRecord; raw: string }> {
     let ws = this.clients.values().next().value as WebSocket | undefined;
     if (!ws) {
-      // By default, wait ~one client retry cycle (≈3s) plus margin for connection
       const connectTimeout = options?.connectTimeoutMs ?? 15000;
       if (connectTimeout > 0) {
         await new Promise<void>((resolve, reject) => {

@@ -1,18 +1,19 @@
 import { Buffer } from 'node:buffer';
 
+/** Unit/Group/Record separators used in transport framing */
 const US = String.fromCharCode(0x1f);
 const GS = String.fromCharCode(0x1d);
 const RS = String.fromCharCode(0x1e);
 
+const SEP_BYTES = new Set<number>([
+  '%'.charCodeAt(0),
+  0x1f,
+  0x1d,
+  0x1e,
+]);
+
 function needsEncodingByte(byte: number): boolean {
-  if (
-    byte === 0x25 /* % */ ||
-    byte === 0x1f /* US */ ||
-    byte === 0x1d /* GS */ ||
-    byte === 0x1e /* RS */
-  ) {
-    return true;
-  }
+  if (SEP_BYTES.has(byte)) return true;
   return byte < 0x20 || byte > 0x7e;
 }
 
@@ -55,7 +56,9 @@ function decodeValue(value: string): string {
 
 export type FlatRecord = Record<string, string>;
 
-// ArrayValue helpers (C#-style): "[v0;v1;v2]"
+/**
+ * ArrayValue helpers (C#-style): "[v0;v1;v2]"
+ */
 export function encodeArray(values: Array<string | number>): string {
   return `[${values.map((v) => String(v)).join(';')}]`;
 }
@@ -72,19 +75,19 @@ export function decodeArray(text: string): string[] {
 export const FlatKV = {
   pairSep: US,
   kvSep: GS,
+  /** Transport-level: return URL-encoded frame so separators are safe over text transports */
   encode(record: FlatRecord): string {
     const pairs: string[] = [];
     for (const [key, raw] of Object.entries(record)) {
       pairs.push(`${key}${GS}${encodeValue(String(raw))}`);
     }
     const raw = pairs.join(US);
-    // Transport-level: return URL-encoded frame so separators are safe over text transports
     return encodeURIComponent(raw);
   },
+  /** Transport-level: entire frame is URL-encoded; decode first */
   decode(text: string): FlatRecord {
     const record: FlatRecord = {};
     if (text.length === 0) return record;
-    // Transport-level: entire frame is URL-encoded; decode first
     const raw = decodeURIComponent(text);
     const pairs = raw.split(US);
     for (const pair of pairs) {

@@ -24,11 +24,10 @@ export class OscReceiver {
       const [address, ...rest] = msg as [unknown, ...unknown[]];
       if (typeof address !== 'string') return;
       try {
-        // Light debug to observe ingress without being too noisy
         const preview = rest.map((v) => (typeof v === 'number' ? v : String(v))).slice(0, 8);
         log.debug({ address, args: preview }, 'osc message received');
       } catch {
-        // ignore logging errors
+        /* noop */
       }
       const h = this.handlers.get(address);
       if (h) {
