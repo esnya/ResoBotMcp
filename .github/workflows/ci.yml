@@ -6,30 +6,15 @@ on:
     branches: [master, main]
 
 jobs:
-  pr-checklist:
-    name: PR Checklist
-    if: github.event_name == 'pull_request'
+  changes:
+    name: Detect changes
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Validate PR checklist
-        env:
-          GITHUB_EVENT_PATH: ${{ github.event_path }}
-        run: node .github/scripts/check-pr-checklist.mjs
-
-  build:
-    runs-on: ubuntu-latest
+    outputs:
+      docs_only: ${{ steps.changes.outputs.docs_only }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
       - name: Determine docs-only change
         id: changes
         env:
@@ -61,19 +46,51 @@ jobs:
           done < changed_files.txt
           echo "docs_only=$docs_only"
           echo "docs_only=$docs_only" >> "$GITHUB_OUTPUT"
+  pr-checklist:
+    name: PR Checklist
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate PR checklist
+        env:
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+        run: node .github/scripts/check-pr-checklist.mjs
+
+  docs:
+    name: Docs (format only)
+    runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.docs_only == 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prettier check
+        run: npx -y prettier@^3.6.2 --check .
+
+  build:
+    runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.docs_only != 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
       - run: npm ci
-        if: steps.changes.outputs.docs_only != 'true'
-      - name: Prettier check (always)
-        run: |
-          if [ "${{ steps.changes.outputs.docs_only }}" = "true" ]; then
-            # Avoid full install on docs-only changes; fetch Prettier via npx
-            npx -y prettier@^3.6.2 --check .
-          else
-            npm run format:check
-          fi
+      - name: Prettier check
+        run: npm run format:check
       - name: Lint + typecheck
-        if: steps.changes.outputs.docs_only != 'true'
         run: npm run lint && npm run typecheck
       - name: Tests
-        if: steps.changes.outputs.docs_only != 'true'
         run: npm test --silent
