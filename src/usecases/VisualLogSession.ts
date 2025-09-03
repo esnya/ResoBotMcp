@@ -21,6 +21,7 @@ export type TextEvent = {
   type: 'text';
   t: number; // epoch ms
   text: string;
+  pose?: { x: number; y: number; z: number; heading: number; pitch: number };
 };
 
 export type VisualEvent = PoseEvent | TextEvent;
@@ -53,6 +54,7 @@ export type ToolEvent = {
   image?: { dataUrl: string; mimeType: string } | undefined;
   structured?: unknown;
   error?: string;
+  pose?: { x: number; y: number; z: number; heading: number; pitch: number };
 };
 
 export type AnyEvent = VisualEvent | ToolEvent;
@@ -109,8 +111,9 @@ function renderHtml(title: string, events: AnyEvent[]): string {
         if(ev.type === 'text'){
           li.innerHTML = '<div><strong>set_text</strong></div>'
             + '<div>' + escapeHtmlInline(ev.text) + '</div>'
-            + '<div class="meta">' + time + '</div>';
+            + '<div class="meta">' + (ev.pose ? ('x=' + fmt(ev.pose.x) + ' y=' + fmt(ev.pose.y) + ' z=' + fmt(ev.pose.z) + ' h=' + fmt(ev.pose.heading) + ' p=' + fmt(ev.pose.pitch) + ' | ') : '') + time + '</div>';
         } else if(ev.type === 'tool'){
+          if(ev.name === 'set_text') continue;
           const head = '<div><strong>tool</strong>: ' + escapeHtmlInline(ev.name) + '</div>';
           let body = '';
           if(ev.text){ body += '<div>' + escapeHtmlInline(ev.text) + '</div>'; }
@@ -119,12 +122,10 @@ function renderHtml(title: string, events: AnyEvent[]): string {
           }
           if(ev.structured){ body += '<div class="meta">' + escapeHtmlInline(JSON.stringify(ev.structured)) + '</div>'; }
           const status = ev.ok ? 'ok' : ('error: ' + escapeHtmlInline(ev.error || ''));
-          li.innerHTML = head + body + '<div class="meta">' + status + ' | ' + time + '</div>';
+          const pose = (ev.pose ? (' | ' + 'x=' + fmt(ev.pose.x) + ' y=' + fmt(ev.pose.y) + ' z=' + fmt(ev.pose.z) + ' h=' + fmt(ev.pose.heading) + ' p=' + fmt(ev.pose.pitch)) : '');
+          li.innerHTML = head + body + '<div class="meta">' + status + ' | ' + time + pose + '</div>';
         } else if(ev.type === 'pose'){
-          li.innerHTML = '<div><strong>pose</strong></div>'
-            + '<div class="meta">'
-            + 'x=' + fmt(ev.x) + ' y=' + fmt(ev.y) + ' z=' + fmt(ev.z) + ' h=' + fmt(ev.heading) + ' p=' + fmt(ev.pitch)
-            + ' | ' + time + '</div>';
+          continue; // hide pose rows from timeline
         }
         ul.appendChild(li);
       }
@@ -220,6 +221,7 @@ export class VisualLogSession {
   private writeTimer: ReturnType<typeof setTimeout> | undefined;
   private pendingText: { t: number; text: string } | undefined;
   private closed = false;
+  private lastPose: { x: number; y: number; z: number; heading: number; pitch: number } | undefined;
 
   constructor(cfg: VisualLogConfig) {
     this.cfg = cfg;
@@ -249,6 +251,7 @@ export class VisualLogSession {
       heading: pose.heading,
       pitch: pose.pitch,
     };
+    this.lastPose = { x: ev.x, y: ev.y, z: ev.z, heading: ev.heading, pitch: ev.pitch };
     this.events.push(ev);
     this.scheduleFlush();
   }
@@ -283,6 +286,14 @@ export class VisualLogSession {
     if ('structured' in event && event.structured !== undefined)
       (ev as unknown as { structured?: unknown }).structured = event.structured;
     if (typeof event.error === 'string') (ev as unknown as { error?: string }).error = event.error;
+    if (this.lastPose)
+      (
+        ev as unknown as {
+          pose?: { x: number; y: number; z: number; heading: number; pitch: number };
+        }
+      ).pose = {
+        ...this.lastPose,
+      };
     this.events.push(ev);
     this.scheduleFlush();
   }
@@ -316,7 +327,12 @@ export class VisualLogSession {
     if (!this.pendingText) return;
     const { t, text } = this.pendingText;
     this.pendingText = undefined;
-    this.events.push({ type: 'text', t, text });
+    const ev = { type: 'text', t, text } as unknown as TextEvent;
+    if (this.lastPose)
+      (ev as unknown as { pose?: { x: number; y: number; z: number; heading: number; pitch: number } }).pose = {
+        ...this.lastPose,
+      };
+    this.events.push(ev);
   }
 
   private async flush(): Promise<void> {
