@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { scoped } from './logging.js';
 import { server, ctx } from './server/app.js';
@@ -23,4 +24,3 @@ server.connect(transport).catch((err: unknown) => {
   log.error({ err }, 'Failed to start MCP stdio server');
   process.exit(1);
 });
-import 'dotenv/config';

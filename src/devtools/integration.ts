@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { z } from 'zod';
@@ -317,4 +318,3 @@ run()
     console.error(err instanceof Error ? err.message : String(err));
     process.exit(1);
   });
-import 'dotenv/config';

@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { loadOscTargetFromEnv, OscSender } from '../gateway/OscSender.js';
 import { wsConfigFromEnv, WebSocketRpcServer } from '../gateway/WebSocketRpc.js';
 import { SetExpression } from '../usecases/SetExpression.js';
@@ -328,4 +329,3 @@ main().catch((err) => {
   console.error(err instanceof Error ? err.message : String(err));
   process.exit(1);
 });
-import 'dotenv/config';
