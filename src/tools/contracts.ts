@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { SetExpressionInput } from '../usecases/SetExpression.js';
 import { SetAccentHueInput } from '../usecases/SetAccentHue.js';
 
-// Single place to declare MCP tool contracts (inputs). Keep code as the source of truth.
+/** Single place to declare MCP tool contracts (inputs). Keep code as the source of truth. */
 
 export const SetTextInput = {
   text: z.string().min(1, 'text is required'),
@@ -55,7 +55,7 @@ export const SetArmPositionInput = {
 
 export const LampStateSchema = z.union([z.literal('off'), z.literal('on')]);
 export const SetLampInput = {
-  // Either provide `state` or `on`. If both present, `state` wins.
+  /** Either provide `state` or `on`. If both present, `state` wins. */
   state: LampStateSchema.optional(),
   on: z.boolean().optional(),
   brightness: z.number().min(0).max(1).optional(),

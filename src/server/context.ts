@@ -25,7 +25,6 @@ export function createAppContext(): AppContext {
   const armContact = new ArmContactTracker();
   const oscIngress = new OscReceiver(oscIngressConfigFromEnv());
 
-  // Wire OSC ingress to pose tracker
   oscIngress.register(ADDR.pose.position, (args) => {
     const [x, y, z] = args as number[];
     poseTracker.updatePosition(Number(x), Number(y), Number(z));
@@ -40,7 +39,6 @@ export function createAppContext(): AppContext {
     );
   });
 
-  // Arm contact: metadata (string) and grabbed flag (number/bool)
   oscIngress.register(ADDR.arm.contact.meta, (args) => {
     const [meta] = args as unknown[];
     if (typeof meta === 'string') {
@@ -55,7 +53,6 @@ export function createAppContext(): AppContext {
     scoped('osc:arm-contact').debug({ grabbed }, 'arm grabbed updated');
   });
 
-  // Register minimal WS RPC methods (server side)
   wsServer.register('ping', (args) => {
     const text = typeof args['text'] === 'string' ? args['text'] : '';
     return { text };

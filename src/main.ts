@@ -6,7 +6,6 @@ import './server/tools.js';
 
 const log = scoped('main');
 
-// Ensure clean shutdown on exit/SIGINT
 process.on('exit', () => ctx.oscSender.close());
 process.on('SIGINT', () => {
   try {
@@ -18,7 +17,6 @@ process.on('SIGINT', () => {
   }
 });
 
-// Connect stdio transport
 const transport = new StdioServerTransport();
 server.connect(transport).catch((err: unknown) => {
   log.error({ err }, 'Failed to start MCP stdio server');

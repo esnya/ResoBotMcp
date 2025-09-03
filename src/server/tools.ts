@@ -130,7 +130,6 @@ server.registerTool(
     const { state, on, brightness, temperature } = z.object(SetLampInput).parse(args);
     const resolvedState: 'off' | 'on' = state ?? (on ? 'on' : 'off');
     const stateInt = resolvedState === 'on' ? 2 : 0;
-    // Lamp state is expected as integer (0/2) on Resonite side
     await ctx.oscSender.sendIntegers(ADDR.lamp.state, stateInt);
     if (typeof brightness === 'number') {
       const b = Math.min(1, Math.max(0, brightness));
@@ -193,10 +192,9 @@ server.registerTool(
   },
 );
 
-// Get last arm contact metadata and grabbed flag
+/** Get last arm contact metadata and grabbed flag */
 server.registerTool('get_arm_contact', { description: 'Last arm contact.' }, (_args: unknown) => {
   const c = ctx.armContact.get();
-  // If no contact has been received yet, or metadata is empty, guide the user.
   if (!c || !c.meta || String(c.meta).trim().length === 0) {
     const msg =
       'No arm contact detected. Move the arm or approach the target until contact is made.';

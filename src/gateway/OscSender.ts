@@ -122,10 +122,10 @@ export class OscSender {
   }
 }
 
+/** Address is intentionally fixed to avoid hidden defaults divergence across tools/docs */
 export function loadOscTargetFromEnv(): OscTarget {
   const host = process.env['RESONITE_OSC_HOST']?.trim() || '127.0.0.1';
   const port = Number(process.env['RESONITE_OSC_PORT']?.trim() ?? '9000');
-  // Address is intentionally fixed to avoid hidden defaults divergence across tools/docs
   const address = ADDR.text;
   return OscTargetSchema.parse({ host, port, address });
 }
