@@ -5,7 +5,7 @@ Purpose: Generate a per-session, single-file HTML visual log under a configurabl
 Scope and boundaries:
 
 - Input events: pose updates from OSC ingress and `set_text` tool invocations.
-- Output: one self-contained HTML file per server session, named by local timestamp.
+- Output: one HTML file per server session, named by local timestamp. Output references CDN assets (D3, hexbin) for the map to keep the file small; no runtime flags. If a fully self-contained/offline variant is needed, we can add an alternative build in the future.
 - Performance: write debounced; frequent pose updates are buffered. `set_text` is coalesced while appending to avoid noisy partials.
 - Independence: no changes to transports or business logic; only minimal hooks in context and tools.
 
@@ -38,8 +38,8 @@ Placement:
 
 Libraries:
 
-- HTML template generated with string literal; no runtime dependency server-side.
-- Frontend uses vanilla JS + minimal inline styles; CDN may be used for client-side time formatting if needed in future; currently self-contained.
+- HTML template is generated server-side with a tiny internal template helper (no heavy runtime dependency). No minify toggle exposed.
+- Frontend uses vanilla JS; D3 and hexbin are loaded via CDN for the map. No CSS reset is included.
 
 Test strategy:
 
