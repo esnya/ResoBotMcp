@@ -48,19 +48,20 @@ const _origRegisterTool = server.registerTool.bind(server);
           }
         }
       }
-      const payload: Record<string, unknown> = { name, args, ok: true, t: t0 };
-      if (typeof text === 'string') payload['text'] = text;
-      if (image) payload['image'] = image;
-      if (res && 'structuredContent' in res && res.structuredContent !== undefined)
-        payload['structured'] = (res as { structuredContent?: unknown }).structuredContent;
-      ctx.visualLog.recordTool(
-        payload as unknown as Omit<
-          import('../usecases/VisualLogSession.js').ToolEvent,
-          'type' | 't'
-        > & {
-          t?: number;
-        },
-      );
+      const payload = {
+        name,
+        args,
+        ok: true as const,
+        t: t0,
+        ...(typeof text === 'string' ? { text } : {}),
+        ...(image ? { image } : {}),
+        ...(res && 'structuredContent' in res && res.structuredContent !== undefined
+          ? { structured: (res as { structuredContent?: unknown }).structuredContent }
+          : {}),
+      } satisfies Omit<import('../usecases/visual_log/types.js').ToolEvent, 'type' | 't'> & {
+        t?: number;
+      };
+      ctx.visualLog.recordTool(payload);
       return res;
     } catch (e) {
       const msg = (e as Error)?.message ?? 'error';

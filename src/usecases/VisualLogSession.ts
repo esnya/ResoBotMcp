@@ -1,46 +1,13 @@
 import { promises as fs } from 'node:fs';
-import { join, resolve, dirname } from 'node:path';
-import { jsonForScript } from './html.js';
-import Mustache from 'mustache';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
+import type { AnyEvent, PoseEvent, TextEvent, ToolEvent } from './visual_log/types.js';
+import { renderHtmlFromTemplate } from './visual_log/renderer.js';
 
 export type VisualLogConfig = {
   dir: string; // output directory (created if missing)
   flushMs: number; // debounce for disk writes
   textCoalesceMs: number; // coalesce successive set_text calls
 };
-
-export type PoseEvent = {
-  type: 'pose';
-  t: number; // epoch ms
-  x: number;
-  y: number;
-  z: number;
-  heading: number;
-  pitch: number;
-};
-
-export type TextEvent = {
-  type: 'text';
-  t: number;
-  text: string;
-  pose?: { x: number; y: number; z: number; heading: number; pitch: number };
-};
-
-export type ToolEvent = {
-  type: 'tool';
-  t: number;
-  name: string;
-  args?: unknown;
-  ok?: boolean;
-  text?: string;
-  image?: { dataUrl: string; mimeType: string };
-  structured?: unknown;
-  error?: string;
-  pose?: { x: number; y: number; z: number; heading: number; pitch: number };
-};
-
-export type AnyEvent = PoseEvent | TextEvent | ToolEvent;
 
 function now(): number {
   return Date.now();
@@ -60,25 +27,7 @@ function timestampBase(d: Date): string {
   return `${yyyy}${mm}${dd}-${HH}${MM}${SS}`;
 }
 
-let TEMPLATE_CACHE: string | undefined;
-async function loadTemplate(): Promise<string> {
-  if (TEMPLATE_CACHE) return TEMPLATE_CACHE;
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = dirname(__filename);
-  const path = resolve(__dirname, '../assets/visual_log_template.html');
-  const buf = await fs.readFile(path, 'utf8');
-  TEMPLATE_CACHE = buf;
-  return buf;
-}
-
-async function renderHtmlFromTemplate(title: string, events: AnyEvent[]): Promise<string> {
-  const tpl = await loadTemplate();
-  const view = {
-    TITLE: title,
-    DATA_JSON: jsonForScript(events),
-  } as const;
-  return Mustache.render(tpl, view);
-}
+// renderer and types are imported from ./visual_log
 
 export class VisualLogSession {
   private cfg: VisualLogConfig;
