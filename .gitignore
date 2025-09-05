@@ -2,6 +2,7 @@
 node_modules/
 dist/
 coverage/
+logs/
 
 # Integration artifacts
 captures/

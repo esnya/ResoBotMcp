@@ -95,6 +95,7 @@ See `docs/CONFIGURATION.md` for patterns and examples.
 - `fix`: Prettier write then ESLint --fix (auto‑fix first).
 - `check`: Prettier check, ESLint, TS type‑check.
 - `test`, `test:watch`: run tests.
+- `smoke:visual-log`: generate a sample VisualLog HTML under `logs/`.
 
 ### Manual Integration/Probe (real client)
 
@@ -109,3 +110,9 @@ See `docs/CONFIGURATION.md` for patterns and examples.
 
 - Prefer small, cohesive changes. Rename early when names clarify intent.
 - If code needs comments to understand, redesign it. Only doc comments allowed where unavoidable.
+
+## Current Task
+
+Keep this list current; remove finished items. Add new items immediately.
+
+None.

@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{TITLE}}</title>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3-hexbin@0.2"></script>
+    <style>
+      :root{color-scheme:light dark}
+      html,body{height:100%;overflow:hidden}
+      body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;margin:0;padding:0}
+      main{padding:12px;display:grid;grid-template-columns:1fr 380px;gap:12px;align-items:start}
+      #map,#timeline{min-width:0}
+      #map{position:relative;height:100%;}
+      #sessionBadge{position:absolute;top:8px;left:8px;background:rgba(0,0,0,.55);color:#fff;padding:2px 8px;border-radius:6px;font-size:.9em;border:1px solid #fff2;z-index:11;pointer-events:none}
+  .map-btn{position:absolute;top:8px;right:8px;background:rgba(0,0,0,.55);color:#fff;border:1px solid #fff2;border-radius:6px;padding:4px 8px;font-size:.9em;z-index:11}
+  .map-btn:hover{background:rgba(0,0,0,.7)}
+      #timeline{overflow-y:auto; overflow-x:hidden;}
+      #timelineBody{overflow-x:hidden}
+      ul{list-style:none;padding:0}
+      li{padding:6px 8px;border-bottom:1px solid #9993;overflow-wrap:anywhere;word-break:break-word}
+      canvas{max-width:100%;height:auto;border:1px solid #9994;border-radius:8px}
+      .meta{opacity:.7;font-size:.9em}
+      .meta.wrap{overflow-wrap:anywhere;word-break:break-word;white-space:normal}
+      .meta.footer{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .col h3{margin:6px 0 8px 0}
+      img.tool-thumb{max-width:256px;max-height:256px;border-radius:6px;border:1px solid #9994;display:block}
+      #mapTooltip{position:absolute;left:0;top:0;transform:translate(-9999px,-9999px);background:rgba(0,0,0,.75);color:#fff;padding:4px 6px;border-radius:6px;font-size:.9em;pointer-events:none;z-index:10;white-space:nowrap}
+      li.highlight{background-color:#0366d622}
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="col" id="map">
+        <div id="sessionBadge"></div>
+  <button id="resetViewBtn" class="map-btn" title="Reset view">↺ Fit</button>
+        <canvas id="mapCanvas"></canvas>
+        <div id="mapTooltip"></div>
+      </section>
+      <section class="col" id="timeline"><div id="timelineBody"></div></section>
+    </main>
+  <script id="visual-log-data" type="application/json">{{{DATA_JSON}}}</script>
+    <script>
+      const data = JSON.parse(document.getElementById('visual-log-data').textContent || '[]');
+      const events = Array.isArray(data) ? data : [];
+      const timelineBody = document.getElementById('timelineBody');
+      const timelineSection = document.getElementById('timeline');
+      const mapSection = document.getElementById('map');
+      const canvas = document.getElementById('mapCanvas');
+      const sessionBadge = document.getElementById('sessionBadge');
+  const resetViewBtn = document.getElementById('resetViewBtn');
+  let ZOOM = null;
+
+      try {
+        const t0 = events.length > 0 ? Math.min.apply(null, events.map(e => Number(e.t)||Date.now())) : Date.now();
+        const label = new Date(t0).toLocaleString();
+        if (sessionBadge) sessionBadge.textContent = label;
+        try { document.title = label; } catch {}
+      } catch {}
+
+      function renderTimeline(){
+        const byTime = [...events].sort((a,b)=>b.t - a.t);
+        const ul = document.createElement('ul');
+        for(const ev of byTime){
+          const li = document.createElement('li');
+          if(ev.type === 'tool') li.id = 'ev-' + String(ev.t);
+          const time = new Date(ev.t).toLocaleString();
+          if(ev.type === 'text'){
+            li.innerHTML = '<div><strong>💬 set_text</strong></div>'
+              + '<div>' + escapeHtmlInline(ev.text) + '</div>'
+              + '<div class="meta footer">' + (ev.pose ? (poseLabel(ev.pose) + ' | ') : '') + time + '</div>';
+          } else if(ev.type === 'tool'){
+            if(ev.name === 'set_text') continue;
+            const head = '<div><strong>tool</strong>: ' + emojiForTool(ev.name) + ' ' + escapeHtmlInline(ev.name) + '</div>';
+            let body = '';
+            if(ev.text){ body += '<div>' + escapeHtmlInline(ev.text) + '</div>'; }
+            if(ev.image && ev.image.dataUrl){
+              body += '<div><img class="tool-thumb" loading="lazy" src="' + ev.image.dataUrl + '" alt="image" /></div>';
+            }
+            if(ev.structured){
+              const pairs = compactFields(ev.structured);
+              if(pairs.length > 0){ body += '<div class="meta wrap">' + escapeHtmlInline(pairs.join(', ')) + '</div>'; }
+            }
+            if(!ev.ok){
+              const msg = ev.error ? String(ev.error) : 'error';
+              body = '<div class="meta wrap">error: ' + escapeHtmlInline(msg) + '</div>' + body;
+            }
+            const pose = (ev.pose ? (' | ' + poseLabel(ev.pose)) : '');
+            li.innerHTML = head + body + '<div class="meta footer">' + time + pose + '</div>';
+          } else if(ev.type === 'pose'){
+            continue;
+          }
+          ul.appendChild(li);
+        }
+        timelineBody.replaceChildren(ul);
+      }
+
+      const VIEW = { k: 1, tx: 0, ty: 0, baseScale: 1, offsetX: 0, offsetZ: 0 };
+      const CONST = { pad: 1, anchorMinDistanceM: 0.05, anchorMinHeadingDeltaDeg: 5, clusterRadiusPx: 16 };
+      let anchorPoints = [];
+      let hoverIdx = -1;
+
+      function getToolAnchors(){
+        const tools = events.filter(e=>e.type==='tool' && e.pose);
+        return tools.map(ev=>({ x: ev.pose.x, z: ev.pose.z, heading: ev.pose.heading, name: ev.name, ok: !!ev.ok, t: ev.t }));
+      }
+      function fitViewToBounds(bounds){
+        const w = (bounds.maxX - bounds.minX) || 1;
+        const h = (bounds.maxZ - bounds.minZ) || 1;
+        const scaleX = (canvas.width - 40) / (w + 2*CONST.pad);
+        const scaleZ = (canvas.height - 40) / (h + 2*CONST.pad);
+        VIEW.baseScale = Math.min(scaleX, scaleZ);
+        VIEW.offsetX = 20 - (bounds.minX - CONST.pad) * VIEW.baseScale;
+        VIEW.offsetZ = 20 - (bounds.minZ - CONST.pad) * VIEW.baseScale;
+        VIEW.k = 1; VIEW.tx = 0; VIEW.ty = 0;
+      }
+      function computeBounds(anchors){
+        if(anchors.length === 0){ return undefined; }
+        let minX = anchors[0].x, maxX = anchors[0].x, minZ = anchors[0].z, maxZ = anchors[0].z;
+        for(const a of anchors){ if(a.x < minX) minX = a.x; if(a.x > maxX) maxX = a.x; if(a.z < minZ) minZ = a.z; if(a.z > maxZ) maxZ = a.z; }
+        return { minX, maxX, minZ, maxZ };
+      }
+      function worldToPixel(x, z){
+        const px = (x * VIEW.baseScale + VIEW.offsetX) * VIEW.k + VIEW.tx;
+        const py = (canvas.height - (z * VIEW.baseScale + VIEW.offsetZ)) * VIEW.k + VIEW.ty;
+        return [px, py];
+      }
+      function emojiForTool(name){
+        const m = { set_text:'💬', capture_camera:'📷', set_arm_position:'🦾', arm_grab:'✊', arm_release:'🖐️', set_expression:'🙂', set_lamp:'💡', set_accent_hue:'🌈', ping:'📶', wait_resonite:'⏳', get_arm_contact:'🧲', move_relative:'➡️', turn_relative:'🌀', get_pose:'📍', reset:'♻️' };
+        return m[name] || '❓';
+      }
+      function renderMap(){
+        const ctx = canvas.getContext('2d');
+        if(!ctx){ return; }
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        const anchors = getToolAnchors();
+        if(anchors.length === 0){ return; }
+        const b = computeBounds(anchors); if(!b){ return; }
+        if(VIEW.baseScale === 1 && VIEW.tx === 0 && VIEW.ty === 0 && VIEW.k === 1){ fitViewToBounds(b); }
+        drawCrispGrid(ctx);
+        // draw axes (X=0 in red, Z=0 in blue) — lighter
+        ctx.lineWidth = 1.5;
+        // X-axis (x=0, varies z)
+        {
+          const [x0,y0] = worldToPixel(0, b.minZ - 1);
+          const [x1,y1] = worldToPixel(0, b.maxZ + 1);
+          ctx.beginPath(); ctx.strokeStyle = 'rgba(228,68,68,0.7)'; ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+        }
+        // Z-axis (z=0, varies x)
+        {
+          const [x0,y0] = worldToPixel(b.minX - 1, 0);
+          const [x1,y1] = worldToPixel(b.maxX + 1, 0);
+          ctx.beginPath(); ctx.strokeStyle = 'rgba(72,136,255,0.7)'; ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+        }
+        const segs = [];
+        let prev = undefined;
+        for(const a of anchors){
+          if(!prev){ prev = a; continue; }
+          const dx = a.x - prev.x, dz = a.z - prev.z;
+          const dist = Math.hypot(dx, dz);
+          const hDelta = Math.abs(((a.heading - prev.heading + 540) % 360) - 180);
+          if(dist >= CONST.anchorMinDistanceM || hDelta >= CONST.anchorMinHeadingDeltaDeg){ segs.push([prev, a]); }
+          prev = a;
+        }
+        // path
+        ctx.lineWidth = 2; ctx.strokeStyle = '#08f';
+        ctx.beginPath();
+        for(const [p0,p1] of segs){
+          const [x0,y0] = worldToPixel(p0.x, p0.z);
+          const [x1,y1] = worldToPixel(p1.x, p1.z);
+          ctx.moveTo(x0, y0); ctx.lineTo(x1, y1);
+        }
+        ctx.stroke();
+  // heading arcs (double size)
+  const half = 40 * Math.PI/180; const radius = 28; ctx.fillStyle = 'rgba(0,136,255,0.18)';
+        for(const a of anchors){
+          const [cx, cy] = worldToPixel(a.x, a.z);
+          const ang = Math.atan2(-(Math.cos(a.heading * Math.PI/180)), Math.sin(a.heading * Math.PI/180));
+          ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, radius, ang - half, ang + half); ctx.closePath(); ctx.fill();
+        }
+  // clustering
+        const points = anchors.map(a=>{ const [x,y] = worldToPixel(a.x, a.z); return [x,y,a]; });
+        anchorPoints = anchors.map(a=>{ const [x,y] = worldToPixel(a.x, a.z); return { x, y, t: a.t, name: a.name, ok: a.ok }; });
+        const hex = d3.hexbin().radius(CONST.clusterRadiusPx).extent([[0,0],[canvas.width, canvas.height]]);
+        const bins = hex(points);
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = '14px system-ui';
+        for(const bin of bins){
+          const bx = bin.x, by = bin.y, list = bin; const count = list.length; const first = list[0][2]; const emoji = emojiForTool(first.name);
+          const label = count > 1 ? (emoji + ' ' + String(count)) : emoji;
+          ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.strokeText(label, bx, by);
+          ctx.fillStyle = '#fff'; ctx.fillText(label, bx, by);
+        }
+  // Compass (N, Z+ is up) — drawn bottom-left to avoid overlay
+  drawCompass(ctx);
+      }
+      function nearestAnchor(x, y){ const r = 16; const r2 = r*r; let idx = -1, best = r2 + 1; for(let i=0;i<anchorPoints.length;i++){ const p = anchorPoints[i]; const dx = x - p.x; const dy = y - p.y; const d2 = dx*dx + dy*dy; if(d2 < best){ best = d2; idx = i; } } return best <= r2 ? idx : -1; }
+      function scrollToEventByTime(t){ const el = document.getElementById('ev-' + String(t)); if(!el) return; el.classList.add('highlight'); setTimeout(()=> el.classList.remove('highlight'), 1200); el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' }); }
+      function fmt(n){ return (Math.round(n*100)/100).toFixed(2); }
+      function heading360(deg){ let h = Math.round(deg % 360); if(h < 0) h += 360; if(h === 0) h = 360; return h; }
+      function poseLabel(p){ const pos = '📍[' + fmt(p.x) + ',' + fmt(p.y) + ',' + fmt(p.z) + ']'; const h = '🧭' + heading360(p.heading) + '°'; const sign = p.pitch >= 0 ? '↗' : '↘'; const ang = sign + Math.abs(Math.round(p.pitch)) + '°'; return pos + ' ' + h + ' ' + ang; }
+      function escapeHtmlInline(s){ return (s||'').replace(/[&<>]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;"})[c]); }
+      function isDataLikeString(k, v){ if(typeof v !== 'string') return false; const key = String(k).toLowerCase(); if(key.includes('dataurl') || key.includes('data_url') || key === 'data' || key.includes('base64')) return true; const s = v.trim(); if(s.startsWith('data:')) return true; if(s.length > 256 && /base64/i.test(s)) return true; return false; }
+      function compactFields(obj){ if(!obj || typeof obj !== 'object') return []; const out = []; for(const [k,v] of Object.entries(obj)){ if(isDataLikeString(k,v)) continue; if(typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean'){ out.push(k + ': ' + String(v)); } } return out; }
+      function resizeCanvas(){ if(!mapSection) return; const dpr = window.devicePixelRatio || 1; const rect = mapSection.getBoundingClientRect(); const targetW = Math.max(300, Math.floor(rect.width)); const viewportH = window.innerHeight || document.documentElement.clientHeight || 800; const targetH = Math.max(240, Math.floor(viewportH - 24)); canvas.style.width = targetW + 'px'; canvas.style.height = targetH + 'px'; canvas.width = Math.floor(targetW * dpr); canvas.height = Math.floor(targetH * dpr); const ctx = canvas.getContext('2d'); if(ctx){ ctx.setTransform(dpr,0,0,dpr,0,0); } if(timelineSection){ timelineSection.style.maxHeight = targetH + 'px'; } }
+      function init(){ resizeCanvas(); renderTimeline(); renderMap(); if (typeof d3 !== 'undefined' && d3.zoom) { ZOOM = d3.zoom().scaleExtent([0.25, 8]).on('zoom', (event)=>{ const t = event.transform; VIEW.k = t.k; VIEW.tx = t.x; VIEW.ty = t.y; renderMap(); }); d3.select(canvas).call(ZOOM); } else { let dragging = false; let lastX=0,lastY=0; canvas.addEventListener('wheel', (e)=>{ e.preventDefault(); const f = e.deltaY < 0 ? 1.1 : 0.9; VIEW.k = Math.min(8, Math.max(0.25, VIEW.k * f)); renderMap(); }, { passive: false }); canvas.addEventListener('mousedown', (e)=>{ dragging = true; lastX=e.clientX; lastY=e.clientY; }); window.addEventListener('mouseup', ()=>{ dragging=false; }); window.addEventListener('mousemove', (e)=>{ if(!dragging) return; VIEW.tx += (e.clientX-lastX); VIEW.ty += (e.clientY-lastY); lastX=e.clientX; lastY=e.clientY; renderMap(); }); }
+        const tooltip = document.getElementById('mapTooltip');
+        canvas.addEventListener('mousemove', (e)=>{ const rect = canvas.getBoundingClientRect(); const x = e.clientX - rect.left; const y = e.clientY - rect.top; hoverIdx = nearestAnchor(x, y); canvas.style.cursor = hoverIdx >= 0 ? 'pointer' : 'default'; if(hoverIdx >= 0 && tooltip){ const p = anchorPoints[hoverIdx]; const text = emojiForTool(p.name) + ' ' + p.name + ' | ' + new Date(p.t).toLocaleString(); tooltip.textContent = text; tooltip.style.transform = 'translate(' + (x + 12) + 'px,' + (y + 12) + 'px)'; } else if(tooltip){ tooltip.style.transform = 'translate(-9999px,-9999px)'; } });
+        canvas.addEventListener('mouseleave', ()=>{ const tooltip = document.getElementById('mapTooltip'); if(tooltip) tooltip.style.transform = 'translate(-9999px,-9999px)'; hoverIdx = -1; canvas.style.cursor = 'default'; });
+        canvas.addEventListener('click', ()=>{ if(hoverIdx >= 0){ const t = anchorPoints[hoverIdx].t; scrollToEventByTime(t); } });
+        if(resetViewBtn){ resetViewBtn.addEventListener('click', ()=>{ const anchors = getToolAnchors(); if(anchors.length === 0) return; const b = computeBounds(anchors); if(!b) return; fitViewToBounds(b); if (typeof d3 !== 'undefined' && d3.zoom && ZOOM){ d3.select(canvas).call(ZOOM.transform, d3.zoomIdentity); } renderMap(); }); }
+      }
+      window.addEventListener('resize', ()=>{ resizeCanvas(); renderMap(); });
+
+      function drawCrispGrid(ctx){
+        const dpr = window.devicePixelRatio || 1;
+        const bounds = computeWorldBoundsForGrid(); if(!bounds) return;
+        const step = chooseNiceStep(bounds);
+        const majorEvery = 5;
+        const pxFor = (x,z)=>{ const [px,py]=worldToPixel(x,z); return [px,py]; };
+        const align = (v)=> Math.round(v) + (Math.round(dpr) % 2 ? 0.5 : 0);
+        // start at an origin-aligned position
+        let startX = Math.floor((bounds.minX - bounds.anchorX) / step) * step + bounds.anchorX;
+        for(let x = startX; x <= bounds.maxX + 1e-6; x += step){
+          const [px0, py0] = pxFor(x, bounds.minZ); const [px1, py1] = pxFor(x, bounds.maxZ); const px = align(px0);
+          const idx = Math.round((x - bounds.anchorX) / step); const isMajor = idx % majorEvery === 0 || Math.abs(x) < 1e-9;
+          ctx.beginPath(); ctx.strokeStyle = isMajor ? '#9997' : '#9993'; ctx.lineWidth = 1; ctx.moveTo(px, Math.min(py0, py1)); ctx.lineTo(px, Math.max(py0, py1)); ctx.stroke();
+        }
+        let startZ = Math.floor((bounds.minZ - bounds.anchorZ) / step) * step + bounds.anchorZ;
+        for(let z = startZ; z <= bounds.maxZ + 1e-6; z += step){
+          const [px0, py0] = pxFor(bounds.minX, z); const [px1, py1] = pxFor(bounds.maxX, z); const py = align(py0);
+          const idx = Math.round((z - bounds.anchorZ) / step); const isMajor = idx % majorEvery === 0 || Math.abs(z) < 1e-9;
+          ctx.beginPath(); ctx.strokeStyle = isMajor ? '#9997' : '#9993'; ctx.lineWidth = 1; ctx.moveTo(Math.min(px0, px1), py); ctx.lineTo(Math.max(px0, px1), py); ctx.stroke();
+        }
+      }
+      function drawCompass(ctx){
+        const dpr = window.devicePixelRatio || 1;
+        const cssW = canvas.width / dpr; const cssH = canvas.height / dpr;
+        const margin = 12; const R = 16; // CSS px
+        const cx = margin + R + 6; const cy = cssH - (margin + R + 6);
+        ctx.save();
+        // outer halo
+        ctx.beginPath(); ctx.arc(cx, cy, R + 2, 0, Math.PI*2);
+        ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.stroke();
+        // inner fill
+        ctx.fillStyle = 'rgba(0,0,0,0.18)'; ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI*2); ctx.fill();
+        // ring
+        ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI*2); ctx.stroke();
+        // north arrow shaft
+        ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(cx, cy - R + 4); ctx.lineTo(cx, cy + 3); ctx.stroke();
+        // arrow head
+        ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.beginPath(); ctx.moveTo(cx, cy - R + 6); ctx.lineTo(cx - 5, cy - R + 16); ctx.lineTo(cx + 5, cy - R + 16); ctx.closePath(); ctx.fill();
+        // N label
+        ctx.font = 'bold 12px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.strokeText('N', cx, cy + 8);
+        ctx.fillStyle = 'rgba(255,255,255,0.95)'; ctx.fillText('N', cx, cy + 8);
+        ctx.restore();
+      }
+      function computeWorldBoundsForGrid(){
+        const tools = getToolAnchors(); if(tools.length === 0) return undefined;
+        let minX = tools[0].x, maxX = tools[0].x, minZ = tools[0].z, maxZ = tools[0].z;
+        for(const a of tools){ if(a.x<minX)minX=a.x; if(a.x>maxX)maxX=a.x; if(a.z<minZ)minZ=a.z; if(a.z>maxZ)maxZ=a.z; }
+        const padX = Math.max(1, (maxX-minX)*0.1); const padZ = Math.max(1, (maxZ-minZ)*0.1);
+        minX -= padX; maxX += padX; minZ -= padZ; maxZ += padZ; return { minX, maxX, minZ, maxZ, anchorX: 0, anchorZ: 0 };
+      }
+      function chooseNiceStep(b){ const worldW = b.maxX - b.minX; const pxW = canvas.width; const worldPerPx = worldW / Math.max(1, pxW); const target = worldPerPx * 64; const base = Math.pow(10, Math.floor(Math.log10(target||1e-6))); const candidates = [1,2,5,10].map(m=>m*base); let step = candidates.find(s=>s>=target) || candidates[candidates.length-1]; if(step < 0.1) step = 0.1; if(step>50) step = 50; return step; }
+
+      init();
+    </script>
+  </body>
+</html>
+
