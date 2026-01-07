@@ -60,7 +60,7 @@
     "vitest": "^3.2.4"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.17.4",
+    "@modelcontextprotocol/sdk": "^1.25.2",
     "dotenv": "^16.4.5",
     "node-osc": "^10.0.0",
     "pino": "^9.4.0",
