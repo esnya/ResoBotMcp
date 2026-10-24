@@ -26,7 +26,7 @@
   },
   "homepage": "https://github.com/esnya/ResoBotMcp#readme",
   "engines": {
-    "node": ">=22.0.0"
+    "node": "^24.22.1"
   },
   "scripts": {
     "dev": "tsx src/main.ts",
@@ -41,7 +41,7 @@
     "format:check": "prettier --check .",
     "fix": "npm run format && npm run lint:fix",
     "check": "npm run format:check && npm run lint && npm run typecheck",
-    "test": "vitest run",
+    "test": "vitest run --no-file-parallelism",
     "test:watch": "vitest"
   },
   "devDependencies": {
@@ -59,12 +59,15 @@
     "typescript-eslint": "^8.41.0",
     "vitest": "^4.1.11"
   },
+  "overrides": {
+    "vite": "8.2.4"
+  },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.26.0",
+    "@modelcontextprotocol/sdk": "1.32.0",
     "dotenv": "^16.4.5",
     "node-osc": "^10.0.0",
     "pino": "^9.4.0",
     "ws": "^8.21.0",
-    "zod": "^3.25.76"
+    "zod": "4.6.6"
   }
 }
