@@ -54,7 +54,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version-file: '.nvmrc'
       - name: Validate PR checklist
         env:
           GITHUB_EVENT_PATH: ${{ github.event_path }}
@@ -71,9 +71,9 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version-file: '.nvmrc'
       - name: Prettier check
-        run: npx -y prettier@^3.6.2 --check .
+        run: npm exec --yes --ignore-scripts --no-audit --no-fund --package=prettier@3.6.2 -- prettier --check .
 
   build:
     runs-on: ubuntu-latest
@@ -85,9 +85,9 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version-file: '.nvmrc'
           cache: 'npm'
-      - run: npm ci
+      - run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Prettier check
         run: npm run format:check
       - name: Lint + typecheck

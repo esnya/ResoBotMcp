@@ -26,7 +26,7 @@
   },
   "homepage": "https://github.com/esnya/ResoBotMcp#readme",
   "engines": {
-    "node": ">=22.0.0"
+    "node": "^24.22.3"
   },
   "scripts": {
     "dev": "tsx src/main.ts",
